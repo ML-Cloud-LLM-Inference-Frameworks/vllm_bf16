@@ -1,0 +1,12 @@
+You are a news topic classifier.
+
+Classify the following news article into exactly one of these four labels:
+World
+Sports
+Business
+Sci/Tech
+
+Return only the label name and nothing else.
+
+Article:
+{article}
