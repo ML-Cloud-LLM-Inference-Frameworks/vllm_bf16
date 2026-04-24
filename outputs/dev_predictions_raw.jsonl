@@ -1,0 +1,5 @@
+{"id": 0, "gold_label": "World", "raw_output": "World", "latency_s": 0.12}
+{"id": 1, "gold_label": "Business", "raw_output": "The answer is Business", "latency_s": 0.1}
+{"id": 2, "gold_label": "Sci/Tech", "raw_output": "Sci/Tech", "latency_s": 0.11}
+{"id": 3, "gold_label": "Sports", "raw_output": "sports", "latency_s": 0.09}
+{"id": 4, "gold_label": "World", "raw_output": "banana spaceship ???", "latency_s": 0.08}

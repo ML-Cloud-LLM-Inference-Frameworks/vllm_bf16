@@ -1,0 +1,9 @@
+vllm
+datasets
+openai
+pandas
+scikit-learn
+tqdm
+fastapi
+uvicorn
+httpx

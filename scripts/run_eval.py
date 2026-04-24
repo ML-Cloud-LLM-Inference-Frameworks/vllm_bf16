@@ -1,51 +1,72 @@
+import argparse
 import json
-import time
 from pathlib import Path
-from openai import OpenAI
+from sklearn.metrics import accuracy_score, f1_score
+from tqdm import tqdm
 
-MODEL_ID = "mistralai/Mistral-7B-Instruct-v0.3"
-INPUT_PATH = Path("data/agnews_dev_100.jsonl")
-OUTPUT_PATH = Path("outputs/dev_predictions_raw.jsonl")
-PROMPT_TEMPLATE = Path("prompt_template.txt").read_text(encoding="utf-8")
+from common.backend_client import classify_article
+from common.data_utils import load_jsonl
 
-client = OpenAI(
-    base_url="http://127.0.0.1:8000/v1",
-    api_key="dummy",
-)
-
-def load_jsonl(path: Path):
-    with path.open("r", encoding="utf-8") as f:
-        for line in f:
-            yield json.loads(line)
 
 def main():
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", required=True, help="Path to input JSONL")
+    parser.add_argument("--output", required=True, help="Path to save predictions JSONL")
+    parser.add_argument("--base-url", default="http://127.0.0.1:8000/v1")
+    parser.add_argument("--model-id", default="mistralai/Mistral-7B-Instruct-v0.3")
+    parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--config-name", default="vllm_bf16")
+    args = parser.parse_args()
 
-    with OUTPUT_PATH.open("w", encoding="utf-8") as fout:
-        for row in load_jsonl(INPUT_PATH):
-            prompt = PROMPT_TEMPLATE.format(article=row["text"])
+    rows = load_jsonl(Path(args.input), limit=args.limit)
+    out_path = Path(args.output)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
-            t0 = time.perf_counter()
-            resp = client.chat.completions.create(
-                model=MODEL_ID,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0,
-                top_p=1,
-                max_tokens=8,
+    gold = []
+    pred = []
+    invalid = 0
+
+    with out_path.open("w", encoding="utf-8") as fout:
+        for row in tqdm(rows, desc="Running evaluation"):
+            result = classify_article(
+                article=row["text"],
+                base_url=args.base_url,
+                model_id=args.model_id,
             )
-            latency_s = time.perf_counter() - t0
 
-            raw_output = resp.choices[0].message.content or ""
+            pred_label = result["prediction"]
+            if pred_label is None:
+                invalid += 1
+            else:
+                gold.append(row["label_name"])
+                pred.append(pred_label)
 
-            out = {
+            record = {
                 "id": row["id"],
                 "gold_label": row["label_name"],
-                "raw_output": raw_output,
-                "latency_s": latency_s,
+                "pred_label": pred_label,
+                "raw_output": result["raw_output"],
+                "latency_s": result["latency_s"],
+                "config_name": args.config_name,
             }
-            fout.write(json.dumps(out, ensure_ascii=False) + "\n")
+            fout.write(json.dumps(record, ensure_ascii=False) + "\n")
 
-    print(f"Saved predictions to {OUTPUT_PATH}")
+    acc_valid = accuracy_score(gold, pred) if pred else 0.0
+    f1_valid = f1_score(gold, pred, average="macro") if pred else 0.0
+    acc_overall = len(pred) / len(rows) * acc_valid if rows else 0.0
+
+    summary = {
+        "config_name": args.config_name,
+        "n_total": len(rows),
+        "n_valid": len(pred),
+        "n_invalid": invalid,
+        "accuracy_valid_only": acc_valid,
+        "macro_f1_valid_only": f1_valid,
+        "accuracy_overall_invalid_as_wrong": acc_overall,
+    }
+
+    print(json.dumps(summary, indent=2))
+
 
 if __name__ == "__main__":
     main()

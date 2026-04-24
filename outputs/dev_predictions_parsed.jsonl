@@ -1,0 +1,5 @@
+{"id": 0, "gold_label": "World", "raw_output": "World", "latency_s": 0.12, "pred_label": "World", "is_valid": true}
+{"id": 1, "gold_label": "Business", "raw_output": "The answer is Business", "latency_s": 0.1, "pred_label": "Business", "is_valid": true}
+{"id": 2, "gold_label": "Sci/Tech", "raw_output": "Sci/Tech", "latency_s": 0.11, "pred_label": "Sci/Tech", "is_valid": true}
+{"id": 3, "gold_label": "Sports", "raw_output": "sports", "latency_s": 0.09, "pred_label": "Sports", "is_valid": true}
+{"id": 4, "gold_label": "World", "raw_output": "banana spaceship ???", "latency_s": 0.08, "pred_label": null, "is_valid": false}

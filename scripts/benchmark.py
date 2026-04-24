@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import json
 import time
@@ -5,78 +6,113 @@ from pathlib import Path
 from statistics import mean
 from openai import AsyncOpenAI
 
-MODEL_ID = "mistralai/Mistral-7B-Instruct-v0.3"
-INPUT_PATH = Path("data/agnews_bench_1000.jsonl")
-PROMPT_TEMPLATE = Path("prompt_template.txt").read_text(encoding="utf-8")
+from common.config import PROMPT_PATH, TEMPERATURE, TOP_P, MAX_TOKENS
+from common.data_utils import load_jsonl
+from common.parser import parse_label
 
-CONCURRENCY = 4
-LIMIT = 100
+PROMPT_TEMPLATE = PROMPT_PATH.read_text(encoding="utf-8")
 
-client = AsyncOpenAI(
-    base_url="http://127.0.0.1:8000/v1",
-    api_key="dummy",
-)
 
-def load_rows(path: Path, limit=None):
-    rows = []
-    with path.open("r", encoding="utf-8") as f:
-        for i, line in enumerate(f):
-            if limit is not None and i >= limit:
-                break
-            rows.append(json.loads(line))
-    return rows
+def percentile(xs, p):
+    if not xs:
+        return None
+    xs = sorted(xs)
+    k = int(round((p / 100) * (len(xs) - 1)))
+    return xs[k]
 
-async def one_request(row, sem):
-    prompt = PROMPT_TEMPLATE.format(article=row["text"])
-    async with sem:
-        t0 = time.perf_counter()
-        resp = await client.chat.completions.create(
-            model=MODEL_ID,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0,
-            top_p=1,
-            max_tokens=8,
-        )
-        dt = time.perf_counter() - t0
-        return {
-            "id": row["id"],
-            "latency_s": dt,
-            "raw_output": resp.choices[0].message.content or "",
-        }
 
 async def main():
-    rows = load_rows(INPUT_PATH, LIMIT)
-    sem = asyncio.Semaphore(CONCURRENCY)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", required=True, help="Shared input JSONL file")
+    parser.add_argument("--base-url", default="http://127.0.0.1:8000/v1")
+    parser.add_argument("--model-id", default="mistralai/Mistral-7B-Instruct-v0.3")
+    parser.add_argument("--config-name", default="vllm_bf16")
+    parser.add_argument("--concurrency", type=int, default=4)
+    parser.add_argument("--limit", type=int, default=None, help="Optional limit for smoke tests")
+    parser.add_argument("--warmup", type=int, default=10)
+    parser.add_argument("--output", required=True, help="Path to save benchmark summary JSON")
+    parser.add_argument("--pred-output", default=None, help="Optional path to save per-request predictions")
+    args = parser.parse_args()
 
+    client = AsyncOpenAI(base_url=args.base_url, api_key="dummy")
+    rows = load_jsonl(Path(args.input), limit=args.limit)
+
+    sem = asyncio.Semaphore(args.concurrency)
+
+    async def one_request(row):
+        prompt = PROMPT_TEMPLATE.format(article=row["text"])
+        async with sem:
+            t0 = time.perf_counter()
+            resp = await client.chat.completions.create(
+                model=args.model_id,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=TEMPERATURE,
+                top_p=TOP_P,
+                max_tokens=MAX_TOKENS,
+            )
+            latency_s = time.perf_counter() - t0
+            raw_output = resp.choices[0].message.content or ""
+            pred_label = parse_label(raw_output)
+            return {
+                "id": row["id"],
+                "gold_label": row["label_name"],
+                "pred_label": pred_label,
+                "raw_output": raw_output,
+                "latency_s": latency_s,
+            }
+
+    # Warmup
+    warmup_rows = rows[: min(args.warmup, len(rows))]
+    for row in warmup_rows:
+        await one_request(row)
+
+    measured_rows = rows[min(args.warmup, len(rows)) :]
     t_start = time.perf_counter()
-    results = await asyncio.gather(*[one_request(r, sem) for r in rows])
+    results = await asyncio.gather(*[one_request(r) for r in measured_rows])
     total_time = time.perf_counter() - t_start
 
     latencies = [r["latency_s"] for r in results]
     throughput = len(results) / total_time if total_time > 0 else 0.0
 
-    xs = sorted(latencies)
-    def pct(p):
-        if not xs:
-            return None
-        k = int(round((p / 100) * (len(xs) - 1)))
-        return xs[k]
+    valid = [r for r in results if r["pred_label"] is not None]
+    n_valid = len(valid)
+    n_invalid = len(results) - n_valid
+    n_correct = sum(1 for r in valid if r["pred_label"] == r["gold_label"])
+
+    accuracy_valid_only = (n_correct / n_valid) if n_valid > 0 else 0.0
+    accuracy_overall = (n_correct / len(results)) if results else 0.0
 
     summary = {
-        "num_requests": len(results),
-        "concurrency": CONCURRENCY,
-        "total_time_s": total_time,
+        "config_name": args.config_name,
+        "model_id": args.model_id,
+        "input_file": args.input,
+        "n_requests_measured": len(results),
+        "warmup_requests": len(warmup_rows),
+        "concurrency": args.concurrency,
         "throughput_req_per_s": throughput,
-        "latency_mean_s": mean(latencies) if latencies else None,
-        "latency_p50_s": pct(50),
-        "latency_p95_s": pct(95),
-        "latency_p99_s": pct(99),
+        "latency_avg_s": mean(latencies) if latencies else None,
+        "latency_p50_s": percentile(latencies, 50),
+        "latency_p95_s": percentile(latencies, 95),
+        "latency_p99_s": percentile(latencies, 99),
+        "n_valid_predictions": n_valid,
+        "n_invalid_predictions": n_invalid,
+        "accuracy_valid_only": accuracy_valid_only,
+        "accuracy_overall_invalid_as_wrong": accuracy_overall,
     }
 
-    Path("outputs").mkdir(exist_ok=True)
-    out_path = Path("outputs") / f"bench_c{CONCURRENCY}.json"
+    out_path = Path(args.output)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+    if args.pred_output is not None:
+        pred_path = Path(args.pred_output)
+        pred_path.parent.mkdir(parents=True, exist_ok=True)
+        with pred_path.open("w", encoding="utf-8") as f:
+            for row in results:
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
     print(json.dumps(summary, indent=2))
+
 
 if __name__ == "__main__":
     asyncio.run(main())
