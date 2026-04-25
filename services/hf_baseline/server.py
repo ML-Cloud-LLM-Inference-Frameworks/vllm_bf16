@@ -61,7 +61,7 @@ class ClassifyResponse(BaseModel):
 
 def run_inference(prompt: str) -> tuple[str, float]:
     messages = [{"role": "user", "content": prompt}]
-    inputs = tokenizer.apply_chat_template(
+    input_ids = tokenizer.apply_chat_template(
         messages,
         return_tensors="pt",
         add_generation_prompt=True
@@ -69,7 +69,7 @@ def run_inference(prompt: str) -> tuple[str, float]:
     t0 = time.perf_counter()
     with torch.no_grad():
         out = model.generate(
-            inputs,
+            input_ids=input_ids,
             max_new_tokens=MAX_TOKENS,
             do_sample=False,
             temperature=None,
@@ -78,7 +78,7 @@ def run_inference(prompt: str) -> tuple[str, float]:
         )
     latency = time.perf_counter() - t0
     raw = tokenizer.decode(
-        out[0][inputs.shape[1]:],
+        out[0][input_ids.shape[1]:],
         skip_special_tokens=True
     ).strip()
     return raw, latency
