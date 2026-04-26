@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import json
+import re
 import time
 from pathlib import Path
 from statistics import mean
@@ -21,38 +22,31 @@ def percentile(xs, p):
     return xs[k]
 
 
-async def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input", required=True, help="Shared input JSONL file")
-    parser.add_argument("--base-url", default="http://127.0.0.1:8000/v1")
-    parser.add_argument("--model-id", default="mistralai/Mistral-7B-Instruct-v0.3")
-    parser.add_argument("--config-name", default="vllm_bf16")
-    parser.add_argument("--concurrency", type=int, default=4)
-    parser.add_argument("--limit", type=int, default=None, help="Optional limit for smoke tests")
-    parser.add_argument("--warmup", type=int, default=10)
-    parser.add_argument("--output", required=True, help="Path to save benchmark summary JSON")
-    parser.add_argument("--pred-output", default=None, help="Optional path to save per-request predictions")
-    parser.add_argument(
-        "--prometheus-raw-output",
-        default=None,
-        help="After benchmark, GET vLLM /metrics (same port as --base-url) and write text here",
-    )
-    parser.add_argument(
-        "--prometheus-json-output",
-        default=None,
-        help="After benchmark, write JSON with scrape info, raw_prometheus, optional samples",
-    )
-    parser.add_argument(
-        "--prometheus-samples",
-        action="store_true",
-        help="When used with --prometheus-json-output, add parsed 'samples' dict (can be large)",
-    )
-    args = parser.parse_args()
+def _per_concurrency_path(base: Path, concurrency: int) -> Path:
+    """e.g. outputs/bench_foo.json -> outputs/bench_foo_c4.json"""
+    return base.parent / f"{base.stem}_c{concurrency}{base.suffix}"
 
-    client = AsyncOpenAI(base_url=args.base_url, api_key="dummy")
-    rows = load_jsonl(Path(args.input), limit=args.limit)
 
-    sem = asyncio.Semaphore(args.concurrency)
+def _strip_existing_c_suffix(p: str) -> str:
+    """.../name_c8.json -> .../name.json  (avoids _c4_c4 when re-running)"""
+    path = Path(p)
+    s = path.stem
+    if re.search(r"_c\d+$", s):
+        s = re.sub(r"_c\d+$", "", s)
+    return str(path.parent / f"{s}{path.suffix}")
+
+
+async def run_one_concurrency(
+    client: AsyncOpenAI,
+    args,
+    rows: list,
+    concurrency: int,
+    output_path: Path,
+    prom_raw: str | None,
+    prom_json: str | None,
+    is_sweep: bool,
+) -> dict:
+    sem = asyncio.Semaphore(concurrency)
 
     async def one_request(row):
         prompt = PROMPT_TEMPLATE.format(article=row["text"])
@@ -76,7 +70,6 @@ async def main():
                 "latency_s": latency_s,
             }
 
-    # Warmup
     warmup_rows = rows[: min(args.warmup, len(rows))]
     for row in warmup_rows:
         await one_request(row)
@@ -103,7 +96,7 @@ async def main():
         "input_file": args.input,
         "n_requests_measured": len(results),
         "warmup_requests": len(warmup_rows),
-        "concurrency": args.concurrency,
+        "concurrency": concurrency,
         "throughput_req_per_s": throughput,
         "latency_avg_s": mean(latencies) if latencies else None,
         "latency_p50_s": percentile(latencies, 50),
@@ -115,7 +108,7 @@ async def main():
         "accuracy_overall_invalid_as_wrong": accuracy_overall,
     }
 
-    if args.prometheus_raw_output or args.prometheus_json_output:
+    if prom_raw or prom_json:
         from common.prometheus_utils import (
             fetch_prometheus_text,
             openai_v1_base_to_metrics_url,
@@ -130,17 +123,17 @@ async def main():
                 "fetched_at_utc": sc.fetched_at_utc,
                 "http_status": sc.status_code,
             }
-            if args.prometheus_raw_output:
-                pr_path = Path(args.prometheus_raw_output)
+            if prom_raw:
+                pr_path = Path(prom_raw)
                 pr_path.parent.mkdir(parents=True, exist_ok=True)
                 pr_path.write_text(sc.text, encoding="utf-8")
-                pr["raw_output"] = str(args.prometheus_raw_output)
-            if args.prometheus_json_output:
+                pr["raw_output"] = str(prom_raw)
+            if prom_json:
                 pj = scrape_to_json_dict(sc, include_samples=args.prometheus_samples)
-                pj_path = Path(args.prometheus_json_output)
+                pj_path = Path(prom_json)
                 pj_path.parent.mkdir(parents=True, exist_ok=True)
                 pj_path.write_text(json.dumps(pj, indent=2), encoding="utf-8")
-                pr["json_output"] = str(args.prometheus_json_output)
+                pr["json_output"] = str(prom_json)
             summary["prometheus"] = pr
         except Exception as e:  # noqa: BLE001
             summary["prometheus"] = {
@@ -150,18 +143,116 @@ async def main():
     elif args.prometheus_samples:
         summary["prometheus_note"] = "ignored: --prometheus-samples needs --prometheus-json-output"
 
-    out_path = Path(args.output)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
     if args.pred_output is not None:
-        pred_path = Path(args.pred_output)
+        if is_sweep:
+            pbase = Path(_strip_existing_c_suffix(args.pred_output))
+            pred_path = _per_concurrency_path(pbase, concurrency)
+        else:
+            pred_path = Path(args.pred_output)
         pred_path.parent.mkdir(parents=True, exist_ok=True)
         with pred_path.open("w", encoding="utf-8") as f:
             for row in results:
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
-    print(json.dumps(summary, indent=2))
+    return summary
+
+
+def _parse_concurrencies(s: str) -> list[int]:
+    out = []
+    for p in s.split(","):
+        p = p.strip()
+        if p:
+            out.append(int(p))
+    return out
+
+
+def _concurrency_suffixed_paths(
+    out_base: Path,
+    prom_raw_base: str | None,
+    prom_json_base: str | None,
+    c: int,
+) -> tuple[Path, str | None, str | None]:
+    op = _per_concurrency_path(out_base, c)
+    pr, pj = prom_raw_base, prom_json_base
+    if pr:
+        prp = _per_concurrency_path(Path(pr), c)
+        pr = str(prp)
+    if pj:
+        pjp = _per_concurrency_path(Path(pj), c)
+        pj = str(pjp)
+    return op, pr, pj
+
+
+async def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", required=True, help="Shared input JSONL file")
+    parser.add_argument("--base-url", default="http://127.0.0.1:8000/v1")
+    parser.add_argument("--model-id", default="mistralai/Mistral-7B-Instruct-v0.3")
+    parser.add_argument("--config-name", default="vllm_bf16")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=None,
+        help="Single run only. If set, runs only this value (overrides --concurrency-list).",
+    )
+    parser.add_argument(
+        "--concurrency-list",
+        type=str,
+        default="1,2,4,8,16",
+        help="Comma-separated concurrencies when --concurrency is not set. Default: 1,2,4,8,16",
+    )
+    parser.add_argument("--limit", type=int, default=None, help="Optional limit for smoke tests")
+    parser.add_argument("--warmup", type=int, default=10)
+    parser.add_argument("--output", required=True, help="Path to save benchmark JSON (or stem for multi-c)")
+    parser.add_argument("--pred-output", default=None, help="Optional per-request JSONL (multi-c: _cN suffix)")
+    parser.add_argument(
+        "--prometheus-raw-output",
+        default=None,
+        help="After each run, GET vLLM /metrics; multi-c: writes under outputs/proms/ with _cN suffix if path given",
+    )
+    parser.add_argument(
+        "--prometheus-json-output",
+        default=None,
+        help="JSON scrape artifact; multi-c: _cN suffix",
+    )
+    parser.add_argument(
+        "--prometheus-samples",
+        action="store_true",
+        help="When used with --prometheus-json-output, add parsed 'samples' dict (can be large)",
+    )
+    args = parser.parse_args()
+
+    if args.concurrency is not None:
+        concurrencies = [args.concurrency]
+    else:
+        concurrencies = _parse_concurrencies(args.concurrency_list)
+    if not concurrencies:
+        raise SystemExit("empty concurrency list")
+
+    client = AsyncOpenAI(base_url=args.base_url, api_key="dummy")
+    rows = load_jsonl(Path(args.input), limit=args.limit)
+    out_base = Path(args.output)
+
+    is_sweep = len(concurrencies) > 1
+    summaries: list[dict] = []
+    for c in concurrencies:
+        if is_sweep:
+            o_path, pr, pj = _concurrency_suffixed_paths(
+                out_base, args.prometheus_raw_output, args.prometheus_json_output, c
+            )
+        else:
+            o_path = out_base
+            pr, pj = args.prometheus_raw_output, args.prometheus_json_output
+
+        s = await run_one_concurrency(client, args, rows, c, o_path, pr, pj, is_sweep)
+        summaries.append(s)
+        print(json.dumps(s, indent=2), flush=True)
+
+    if len(summaries) > 1:
+        print(json.dumps({"concurrency_sweep": [x["concurrency"] for x in summaries], "runs": len(summaries)}, indent=2))
 
 
 if __name__ == "__main__":
