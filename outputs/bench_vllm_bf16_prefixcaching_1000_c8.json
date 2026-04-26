@@ -1,0 +1,24 @@
+{
+  "config_name": "vllm_bf16_prefixcaching",
+  "model_id": "mistralai/Mistral-7B-Instruct-v0.3",
+  "input_file": "data/agnews_bench_1000.jsonl",
+  "n_requests_measured": 990,
+  "warmup_requests": 10,
+  "concurrency": 8,
+  "throughput_req_per_s": 18.761665213514284,
+  "latency_avg_s": 0.42421251742626104,
+  "latency_p50_s": 0.35702625001431443,
+  "latency_p95_s": 0.7413719980104361,
+  "latency_p99_s": 0.8041967939934693,
+  "n_valid_predictions": 981,
+  "n_invalid_predictions": 9,
+  "accuracy_valid_only": 0.745158002038736,
+  "accuracy_overall_invalid_as_wrong": 0.7383838383838384,
+  "prometheus": {
+    "metrics_url": "http://127.0.0.1:8000/metrics",
+    "fetched_at_utc": "2026-04-26T18:03:54Z",
+    "http_status": 200,
+    "raw_output": "/home/sgcjin/vllm_bf16/outputs/proms/prom_vllm_bf16_prefixcaching_1000_c8.txt",
+    "json_output": "/home/sgcjin/vllm_bf16/outputs/proms/prom_vllm_bf16_prefixcaching_1000_c8.json"
+  }
+}

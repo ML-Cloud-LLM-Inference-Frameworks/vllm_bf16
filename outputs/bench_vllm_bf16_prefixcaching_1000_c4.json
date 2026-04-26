@@ -5,20 +5,20 @@
   "n_requests_measured": 990,
   "warmup_requests": 10,
   "concurrency": 4,
-  "throughput_req_per_s": 11.546320121926172,
-  "latency_avg_s": 0.34543791626491277,
-  "latency_p50_s": 0.2711889549973421,
-  "latency_p95_s": 0.621115154994186,
-  "latency_p99_s": 0.654385181987891,
+  "throughput_req_per_s": 11.315402682384544,
+  "latency_avg_s": 0.35248945905030893,
+  "latency_p50_s": 0.28106997298891656,
+  "latency_p95_s": 0.6282262339955196,
+  "latency_p99_s": 0.6698522119841073,
   "n_valid_predictions": 981,
   "n_invalid_predictions": 9,
   "accuracy_valid_only": 0.745158002038736,
   "accuracy_overall_invalid_as_wrong": 0.7383838383838384,
   "prometheus": {
     "metrics_url": "http://127.0.0.1:8000/metrics",
-    "fetched_at_utc": "2026-04-26T17:42:48Z",
+    "fetched_at_utc": "2026-04-26T18:02:59Z",
     "http_status": 200,
-    "raw_output": "/home/sgcjin/vllm_bf16/outputs/prom_vllm_bf16_prefixcaching_1000.txt",
-    "json_output": "/home/sgcjin/vllm_bf16/outputs/prom_vllm_bf16_prefixcaching_1000.json"
+    "raw_output": "/home/sgcjin/vllm_bf16/outputs/proms/prom_vllm_bf16_prefixcaching_1000_c4.txt",
+    "json_output": "/home/sgcjin/vllm_bf16/outputs/proms/prom_vllm_bf16_prefixcaching_1000_c4.json"
   }
 }
