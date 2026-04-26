@@ -1,0 +1,15 @@
+model: SET_VLLM_AWQ_MODEL
+host: "0.0.0.0"
+port: 8000
+api-key: "dummy"
+
+dtype: half
+quantization: awq
+generation-config: "vllm"
+scheduling-policy: "fcfs"
+max-num-seqs: 16
+max-num-batched-tokens: 4096
+enable-chunked-prefill: true
+gpu-memory-utilization: 0.9
+enable-logging-iteration-details: true
+enable-prefix-caching: false

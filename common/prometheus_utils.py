@@ -104,3 +104,49 @@ def scrape_to_json_dict(scrape: PrometheusScrape, include_samples: bool) -> dict
         d["samples"] = parse_prometheus_samples(scrape.text)
     d["raw_prometheus"] = scrape.text
     return d
+
+
+def _matching_values(samples: dict[str, float | int], metric_name: str) -> list[float]:
+    out: list[float] = []
+    prefix = metric_name + "{"
+    for key, value in samples.items():
+        if key == metric_name or key.startswith(prefix):
+            out.append(float(value))
+    return out
+
+
+def summarize_vllm_samples(samples: dict[str, float | int]) -> dict[str, Any]:
+    summary: dict[str, Any] = {}
+
+    def add_hist_mean(out_key: str, metric_base: str) -> None:
+        sum_values = _matching_values(samples, metric_base + "_sum")
+        count_values = _matching_values(samples, metric_base + "_count")
+        total_sum = sum(sum_values)
+        total_count = sum(count_values)
+        if total_count > 0:
+            summary[out_key] = total_sum / total_count
+            summary[out_key + "_count"] = int(total_count)
+
+    add_hist_mean("ttft_mean_s", "vllm:time_to_first_token_seconds")
+    add_hist_mean("e2e_latency_mean_s", "vllm:e2e_request_latency_seconds")
+    add_hist_mean("queue_time_mean_s", "vllm:request_queue_time_seconds")
+    add_hist_mean("inference_time_mean_s", "vllm:request_inference_time_seconds")
+    add_hist_mean("prefill_time_mean_s", "vllm:request_prefill_time_seconds")
+    add_hist_mean("decode_time_mean_s", "vllm:request_decode_time_seconds")
+    add_hist_mean("inter_token_latency_mean_s", "vllm:inter_token_latency_seconds")
+
+    kv_usage = _matching_values(samples, "vllm:kv_cache_usage_perc")
+    if not kv_usage:
+        kv_usage = _matching_values(samples, "vllm:gpu_cache_usage_perc")
+    if kv_usage:
+        summary["kv_cache_usage_perc_max"] = max(kv_usage)
+
+    prefix_hits = sum(_matching_values(samples, "vllm:prefix_cache_hits"))
+    prefix_queries = sum(_matching_values(samples, "vllm:prefix_cache_queries"))
+    if prefix_hits or prefix_queries:
+        summary["prefix_cache_hits"] = int(prefix_hits)
+        summary["prefix_cache_queries"] = int(prefix_queries)
+        if prefix_queries > 0:
+            summary["prefix_cache_hit_rate"] = prefix_hits / prefix_queries
+
+    return summary

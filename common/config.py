@@ -4,6 +4,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 OUTPUT_DIR = PROJECT_ROOT / "outputs"
 LOG_DIR = PROJECT_ROOT / "logs"
+CONFIG_DIR = PROJECT_ROOT / "configs"
 PROMPT_PATH = PROJECT_ROOT / "prompt_template.txt"
 
 DATASET_ID = "pietrolesci/agnews"

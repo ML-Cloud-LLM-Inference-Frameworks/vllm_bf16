@@ -1,0 +1,14 @@
+model: mistralai/Mistral-7B-Instruct-v0.3
+host: "0.0.0.0"
+port: 8000
+api-key: "dummy"
+
+dtype: bfloat16
+generation-config: "vllm"
+scheduling-policy: "fcfs"
+max-num-seqs: 16
+max-num-batched-tokens: 4096
+enable-chunked-prefill: true
+gpu-memory-utilization: 0.9
+enable-logging-iteration-details: true
+enable-prefix-caching: true

@@ -1,4 +1,3 @@
-vllm
 datasets
 openai
 pandas

@@ -84,13 +84,16 @@ async def run_one_concurrency(
     nvidia_meta: dict = {}
     if nvidia_smi_csv:
         from common.nvidia_smi_sampler import nvidia_smi_log_csv
+        from common.nvidia_smi_summary import summarize_nvidia_smi_csv
 
         try:
             with nvidia_smi_log_csv(nvidia_smi_csv, interval_s=args.nvidia_smi_interval) as p:
                 warmup_rows, results, total_time = await run_requests_phase()
+            nvidia_summary = summarize_nvidia_smi_csv(p)
             nvidia_meta = {
                 "csv": str(p),
                 "interval_s": args.nvidia_smi_interval,
+                "summary": nvidia_summary,
             }
         except OSError as e:
             warmup_rows, results, total_time = await run_requests_phase()
@@ -136,7 +139,9 @@ async def run_one_concurrency(
         from common.prometheus_utils import (
             fetch_prometheus_text,
             openai_v1_base_to_metrics_url,
+            parse_prometheus_samples,
             scrape_to_json_dict,
+            summarize_vllm_samples,
         )
 
         murl = openai_v1_base_to_metrics_url(args.base_url)
@@ -158,6 +163,8 @@ async def run_one_concurrency(
                 pj_path.parent.mkdir(parents=True, exist_ok=True)
                 pj_path.write_text(json.dumps(pj, indent=2), encoding="utf-8")
                 pr["json_output"] = str(prom_json)
+            if args.prometheus_samples:
+                pr["derived"] = summarize_vllm_samples(parse_prometheus_samples(sc.text))
             summary["prometheus"] = pr
         except Exception as e:  # noqa: BLE001
             summary["prometheus"] = {
