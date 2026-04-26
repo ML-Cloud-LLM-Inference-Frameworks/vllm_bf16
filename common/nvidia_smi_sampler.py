@@ -9,11 +9,13 @@ import subprocess
 from pathlib import Path
 from typing import Generator
 
-# nvidia-smi -q  names; [MiB] / [%] appear as column names in csv output
+# Field names for --query-gpu= must be bare (e.g. memory.total). Do NOT use
+# "memory.total [MiB]" in the query — that form is output-only; many drivers
+# reject it with: Field "memory.total [MiB]" is not a valid field to query.
+# The printed CSV header line still shows [MiB] / [%] where applicable.
 _DEFAULT_QUERY = (
-    "timestamp,"
-    "name,memory.total [MiB],memory.used [MiB],memory.free [MiB],"
-    "utilization.gpu [%],utilization.memory [%]"
+    "timestamp,name,memory.total,memory.used,memory.free,"
+    "utilization.gpu,utilization.memory"
 )
 
 try:
