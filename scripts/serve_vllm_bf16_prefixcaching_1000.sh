@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # vLLM BF16 + prefix caching, then AG News 1000-request benchmark.
-# Matches: common/config.py (DEFAULT_BASE_URL, MODEL_ID) + outputs/bench_*_c{1,2,4,8,16}.json, outputs/proms/
+# All run artifacts: outputs/<EXPERIMENT_NAME>/{ bench_*.json, proms/, nvidia_smi/ } (defaults in this file)
 #
 # Prereq: conda env with vllm and openai deps, e.g.
 #   conda activate llm-inference
@@ -8,7 +8,7 @@
 # Usage (serve blocks; bench = default concurrency sweep 1,2,4,8,16 + proms/):
 #   ./scripts/serve_vllm_bf16_prefixcaching_1000.sh serve
 #   ./scripts/serve_vllm_bf16_prefixcaching_1000.sh bench
-#   (writes outputs/bench_vllm_bf16_prefixcaching_1000_c{1,2,4,8,16}.json, outputs/proms/prom_*_cN.{txt,json})
+#   (e.g. outputs/vllm_bf16_prefixcaching/bench_1000_cN.json, .../proms/..., .../nvidia_smi/...)
 #   Single concurrency only: BENCH_CONCURRENCY=4 ./scripts/...sh bench
 #
 # Repro (same as 2026-04-26 run, vllm 0.19.1, GPU L4):
@@ -42,15 +42,21 @@ if [ -z "$VLLM_MODEL_PATH" ] && [ -d /home/sgcjin/mistral_models/7B-Instruct-v0.
   VLLM_MODEL_PATH="/home/sgcjin/mistral_models/7B-Instruct-v0.3"
 fi
 BASE_URL="http://127.0.0.1:${PORT}/v1"
+# Experiment: all run outputs (bench json, proms, nvidia-smi logs) go under outputs/<name>/
+EXPERIMENT_NAME="${EXPERIMENT_NAME:-vllm_bf16_prefixcaching}"
+EXPERIMENT_DIR="${EXPERIMENT_DIR:-$ROOT/outputs/$EXPERIMENT_NAME}"
 BENCH_IN="${BENCH_INPUT:-data/agnews_bench_1000.jsonl}"
-BENCH_OUT="${BENCH_OUTPUT:-$ROOT/outputs/bench_vllm_bf16_prefixcaching_1000.json}"
-# vLLM exposes OpenMetrics at http://host:port/metrics; sweep uses outputs/proms/*_cN.suffix
-mkdir -p "$ROOT/outputs/proms" 2>/dev/null || true
-PROM_RAW="${PROMETHEUS_RAW_OUTPUT:-$ROOT/outputs/proms/prom_vllm_bf16_prefixcaching_1000.txt}"
-PROM_JSON="${PROMETHEUS_JSON_OUTPUT:-$ROOT/outputs/proms/prom_vllm_bf16_prefixcaching_1000.json}"
+BENCH_OUT="${BENCH_OUTPUT:-$EXPERIMENT_DIR/bench_1000.json}"
+mkdir -p "$EXPERIMENT_DIR/proms" "$EXPERIMENT_DIR/nvidia_smi" 2>/dev/null || true
+PROM_RAW="${PROMETHEUS_RAW_OUTPUT:-$EXPERIMENT_DIR/proms/prom_1000.txt}"
+PROM_JSON="${PROMETHEUS_JSON_OUTPUT:-$EXPERIMENT_DIR/proms/prom_1000.json}"
+# nvidia-smi: logs during each concurrency's warmup+measured phase (BENCH_NVIDIA_SMI=0 to disable)
+NVIDIA_SMI_CSV_BASE="${NVIDIA_SMI_CSV_BASE:-$EXPERIMENT_DIR/nvidia_smi/smi_1000.csv}"
+NVIDIA_SMI_INTERVAL="${NVIDIA_SMI_INTERVAL:-1.0}"
 # Set PROMETHEUS_SAMPLES=1 to add parsed "samples" into the JSON (larger file)
 PROMETHEUS_SAMPLES="${PROMETHEUS_SAMPLES:-0}"
-CONFIG_NAME="${BENCH_CONFIG_NAME:-vllm_bf16_prefixcaching}"
+# Records as config_name in benchmark JSON; default matches the experiment
+CONFIG_NAME="${BENCH_CONFIG_NAME:-$EXPERIMENT_NAME}"
 
 case "${1:-}" in
   serve)
@@ -82,6 +88,10 @@ case "${1:-}" in
     if [ -n "${BENCH_CONCURRENCY_LIST:-}" ]; then
       CL_EX=(--concurrency-list "${BENCH_CONCURRENCY_LIST}")
     fi
+    NV_SMI=()
+    if [ "${BENCH_NVIDIA_SMI:-1}" != "0" ]; then
+      NV_SMI=(--nvidia-smi-csv "$NVIDIA_SMI_CSV_BASE" --nvidia-smi-interval "${NVIDIA_SMI_INTERVAL}")
+    fi
     # Default: 1,2,4,8,16 in benchmark.py. BENCH_CONCURRENCY=4 forces a single run.
     python "$ROOT/scripts/benchmark.py" \
       --input "$BENCH_IN" \
@@ -93,16 +103,18 @@ case "${1:-}" in
       --prometheus-json-output "$PROM_JSON" \
       "${BENCH_EX[@]}" \
       "${CL_EX[@]}" \
+      "${NV_SMI[@]}" \
       "${SAMPLES[@]}"
     ;;
   *)
     echo "Usage: $0 {serve|bench}" >&2
     echo "  serve  — vllm serve (bf16, prefix caching) on ${HOST}:${PORT}" >&2
-    echo "  bench  — sweep concurrency 1,2,4,8,16 (default) + proms/; ${PROM_RAW}* , ${PROM_JSON}*" >&2
-    echo "         BENCH_CONCURRENCY=N for single N; BENCH_CONCURRENCY_LIST=1,4,8 for custom sweep" >&2
+    echo "  bench  — sweep c 1,2,4,8,16 (default) + proms/ + nvidia_smi/ CSV" >&2
+    echo "         BENCH_NVIDIA_SMI=0 to skip GPU csv; BENCH_CONCURRENCY=N; BENCH_CONCURRENCY_LIST=1,4,8" >&2
     echo "  conda: CONDA_BASE=$CONDA_BASE CONDA_ENV=$CONDA_ENV" >&2
     echo "  model: VLLM_MODEL_HUB and optional VLLM_MODEL_PATH (local dir)" >&2
-    echo "  other: VLLM_PORT, BENCH_*, PROMETHEUS_*, set PROMETHEUS_SAMPLES=1 for sample dict in JSON" >&2
+    echo "  other: EXPERIMENT_NAME (and EXPERIMENT_DIR=.../outputs/\\\$name), BENCH_*, VLLM_PORT" >&2
+    echo "         PROMETHEUS_*, NVIDIA_SMI_CSV_BASE, NVIDIA_SMI_INTERVAL" >&2
     exit 1
     ;;
 esac

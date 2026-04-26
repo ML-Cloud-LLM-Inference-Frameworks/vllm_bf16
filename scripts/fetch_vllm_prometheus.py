@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Fetch vLLM Prometheus text from the same host/port as the API (GET /metrics, not /v1).
-Normally use `serve_vllm_... sh bench` (it runs benchmark + saves prom). This CLI is
-for ad-hoc scrapes, e.g.  --metrics-url http://127.0.0.1:8000/metrics
+Artefacts from `serve_*. sh bench` live under `outputs/<EXPERIMENT_NAME>/proms/`. This
+CLI is for ad-hoc scrapes, e.g. --metrics-url http://127.0.0.1:8000/metrics
 """
 
 from __future__ import annotations

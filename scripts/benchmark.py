@@ -44,6 +44,7 @@ async def run_one_concurrency(
     output_path: Path,
     prom_raw: str | None,
     prom_json: str | None,
+    nvidia_smi_csv: str | None,
     is_sweep: bool,
 ) -> dict:
     sem = asyncio.Semaphore(concurrency)
@@ -70,14 +71,35 @@ async def run_one_concurrency(
                 "latency_s": latency_s,
             }
 
-    warmup_rows = rows[: min(args.warmup, len(rows))]
-    for row in warmup_rows:
-        await one_request(row)
+    async def run_requests_phase():
+        """Warmup + measured batch. GPU sampling should wrap this if nvidia_smi is used."""
+        warmup_rows = rows[: min(args.warmup, len(rows))]
+        for row in warmup_rows:
+            await one_request(row)
+        measured_rows = rows[min(args.warmup, len(rows)) :]
+        t0 = time.perf_counter()
+        r = await asyncio.gather(*[one_request(r) for r in measured_rows])
+        return warmup_rows, r, time.perf_counter() - t0
 
-    measured_rows = rows[min(args.warmup, len(rows)) :]
-    t_start = time.perf_counter()
-    results = await asyncio.gather(*[one_request(r) for r in measured_rows])
-    total_time = time.perf_counter() - t_start
+    nvidia_meta: dict = {}
+    if nvidia_smi_csv:
+        from common.nvidia_smi_sampler import nvidia_smi_log_csv
+
+        try:
+            with nvidia_smi_log_csv(nvidia_smi_csv, interval_s=args.nvidia_smi_interval) as p:
+                warmup_rows, results, total_time = await run_requests_phase()
+            nvidia_meta = {
+                "csv": str(p),
+                "interval_s": args.nvidia_smi_interval,
+            }
+        except OSError as e:
+            warmup_rows, results, total_time = await run_requests_phase()
+            nvidia_meta = {
+                "error": f"{type(e).__name__}: {e}",
+                "csv": nvidia_smi_csv,
+            }
+    else:
+        warmup_rows, results, total_time = await run_requests_phase()
 
     latencies = [r["latency_s"] for r in results]
     throughput = len(results) / total_time if total_time > 0 else 0.0
@@ -107,6 +129,8 @@ async def run_one_concurrency(
         "accuracy_valid_only": accuracy_valid_only,
         "accuracy_overall_invalid_as_wrong": accuracy_overall,
     }
+    if nvidia_meta:
+        summary["nvidia_smi"] = nvidia_meta
 
     if prom_raw or prom_json:
         from common.prometheus_utils import (
@@ -211,7 +235,7 @@ async def main():
     parser.add_argument(
         "--prometheus-raw-output",
         default=None,
-        help="After each run, GET vLLM /metrics; multi-c: writes under outputs/proms/ with _cN suffix if path given",
+        help="After each run, GET vLLM /metrics; multi-c: _cN suffix on path; put under your experiment output dir if you use it",
     )
     parser.add_argument(
         "--prometheus-json-output",
@@ -222,6 +246,17 @@ async def main():
         "--prometheus-samples",
         action="store_true",
         help="When used with --prometheus-json-output, add parsed 'samples' dict (can be large)",
+    )
+    parser.add_argument(
+        "--nvidia-smi-csv",
+        default=None,
+        help="During warmup+measured requests, run nvidia-smi -l in background and log CSV; sweep: _cN suffix",
+    )
+    parser.add_argument(
+        "--nvidia-smi-interval",
+        type=float,
+        default=1.0,
+        help="Seconds between nvidia-smi samples (rounded up to an integer >=1 for the driver -l arg)",
     )
     args = parser.parse_args()
 
@@ -243,11 +278,17 @@ async def main():
             o_path, pr, pj = _concurrency_suffixed_paths(
                 out_base, args.prometheus_raw_output, args.prometheus_json_output, c
             )
+            nvidia_path = None
+            if args.nvidia_smi_csv:
+                nvidia_path = str(_per_concurrency_path(Path(args.nvidia_smi_csv), c))
         else:
             o_path = out_base
             pr, pj = args.prometheus_raw_output, args.prometheus_json_output
+            nvidia_path = args.nvidia_smi_csv
 
-        s = await run_one_concurrency(client, args, rows, c, o_path, pr, pj, is_sweep)
+        s = await run_one_concurrency(
+            client, args, rows, c, o_path, pr, pj, nvidia_path, is_sweep
+        )
         summaries.append(s)
         print(json.dumps(s, indent=2), flush=True)
 
