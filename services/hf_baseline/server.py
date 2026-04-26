@@ -60,7 +60,8 @@ class ClassifyResponse(BaseModel):
 
 
 def run_inference(prompt: str) -> tuple[str, float]:
-    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+    formatted = f"[INST] {prompt} [/INST]"
+    inputs = tokenizer(formatted, return_tensors="pt").to("cuda")
     t0 = time.perf_counter()
     with torch.no_grad():
         out = model.generate(
