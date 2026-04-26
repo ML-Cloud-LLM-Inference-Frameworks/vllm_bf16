@@ -5,11 +5,11 @@
   "n_requests_measured": 990,
   "warmup_requests": 10,
   "concurrency": 2,
-  "throughput_req_per_s": 2.4426590265315187,
-  "latency_avg_s": 0.8175552658411273,
-  "latency_p50_s": 0.5926699510018807,
-  "latency_p95_s": 1.4769861820095684,
-  "latency_p99_s": 1.481376514013391,
+  "throughput_req_per_s": 2.4578375220471997,
+  "latency_avg_s": 0.8125179441365287,
+  "latency_p50_s": 0.5905008070112672,
+  "latency_p95_s": 1.471147303993348,
+  "latency_p99_s": 1.4750984749989584,
   "n_valid_predictions": 984,
   "n_invalid_predictions": 6,
   "accuracy_valid_only": 0.693089430894309,
@@ -17,5 +17,12 @@
   "nvidia_smi": {
     "csv": "/home/sgcjin/vllm_bf16/outputs/vllm_int4/nvidia_smi/smi_1000_c2.csv",
     "interval_s": 1.0
+  },
+  "prometheus": {
+    "metrics_url": "http://127.0.0.1:8000/metrics",
+    "fetched_at_utc": "2026-04-26T20:42:28Z",
+    "http_status": 200,
+    "raw_output": "/home/sgcjin/vllm_bf16/outputs/vllm_int4/proms/prom_1000_c2.txt",
+    "json_output": "/home/sgcjin/vllm_bf16/outputs/vllm_int4/proms/prom_1000_c2.json"
   }
 }

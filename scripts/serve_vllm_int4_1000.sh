@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # vLLM INT4 (AWQ) quantization — Optimization 3 (Jiaming Liu)
 # Model: solidrust/Mistral-7B-Instruct-v0.3-AWQ
-# All run artifacts: outputs/<EXPERIMENT_NAME>/{ bench_*.json, nvidia_smi/ }
+# All run artifacts: outputs/<EXPERIMENT_NAME>/{ bench_*.json, proms/, nvidia_smi/ }
 #
 # Usage:
 #   ./scripts/serve_vllm_int4_1000.sh serve
@@ -37,11 +37,17 @@ EXPERIMENT_NAME="${EXPERIMENT_NAME:-vllm_int4}"
 EXPERIMENT_DIR="${EXPERIMENT_DIR:-$ROOT/outputs/$EXPERIMENT_NAME}"
 BENCH_IN="${BENCH_INPUT:-data/agnews_bench_1000.jsonl}"
 BENCH_OUT="${BENCH_OUTPUT:-$EXPERIMENT_DIR/bench_1000.json}"
-mkdir -p "$EXPERIMENT_DIR/nvidia_smi" 2>/dev/null || true
+mkdir -p "$EXPERIMENT_DIR/proms" "$EXPERIMENT_DIR/nvidia_smi" 2>/dev/null || true
+
+PROM_RAW="${PROMETHEUS_RAW_OUTPUT:-$EXPERIMENT_DIR/proms/prom_1000.txt}"
+PROM_JSON="${PROMETHEUS_JSON_OUTPUT:-$EXPERIMENT_DIR/proms/prom_1000.json}"
 
 # nvidia-smi: logs during each concurrency's warmup+measured phase (BENCH_NVIDIA_SMI=0 to disable)
 NVIDIA_SMI_CSV_BASE="${NVIDIA_SMI_CSV_BASE:-$EXPERIMENT_DIR/nvidia_smi/smi_1000.csv}"
 NVIDIA_SMI_INTERVAL="${NVIDIA_SMI_INTERVAL:-1.0}"
+
+# Set PROMETHEUS_SAMPLES=1 to add parsed "samples" into the JSON (larger file)
+PROMETHEUS_SAMPLES="${PROMETHEUS_SAMPLES:-0}"
 
 # Records as config_name in benchmark JSON; default matches the experiment
 CONFIG_NAME="${BENCH_CONFIG_NAME:-$EXPERIMENT_NAME}"
@@ -58,6 +64,11 @@ case "${1:-}" in
       --gpu-memory-utilization "$GPU_MEM"
     ;;
   bench)
+    SAMPLES=()
+    if [ "${PROMETHEUS_SAMPLES}" = "1" ]; then
+      SAMPLES=(--prometheus-samples)
+    fi
+
     BENCH_EX=( )
     if [ -n "${BENCH_CONCURRENCY:-}" ]; then
       BENCH_EX=(--concurrency "${BENCH_CONCURRENCY}")
@@ -80,19 +91,22 @@ case "${1:-}" in
       --model-id "$SERVED_NAME" \
       --config-name "$CONFIG_NAME" \
       --output "$BENCH_OUT" \
+      --prometheus-raw-output "$PROM_RAW" \
+      --prometheus-json-output "$PROM_JSON" \
       "${BENCH_EX[@]}" \
       "${CL_EX[@]}" \
-      "${NV_SMI[@]}"
+      "${NV_SMI[@]}" \
+      "${SAMPLES[@]}"
     ;;
   *)
     echo "Usage: $0 {serve|bench}" >&2
     echo "  serve  — vllm serve (AWQ INT4) on ${HOST}:${PORT}" >&2
-    echo "  bench  — sweep c 1,2,4,8,16 (default) + nvidia_smi/ CSV" >&2
+    echo "  bench  — sweep c 1,2,4,8,16 (default) + proms/ + nvidia_smi/ CSV" >&2
     echo "         BENCH_NVIDIA_SMI=0 to skip GPU csv; BENCH_CONCURRENCY=N; BENCH_CONCURRENCY_LIST=1,4,8" >&2
     echo "  conda: CONDA_BASE=$CONDA_BASE CONDA_ENV=$CONDA_ENV" >&2
     echo "  model: MODEL=$MODEL SERVED_NAME=$SERVED_NAME" >&2
     echo "  other: EXPERIMENT_NAME (and EXPERIMENT_DIR=.../outputs/\$name), BENCH_*, VLLM_PORT" >&2
-    echo "         NVIDIA_SMI_CSV_BASE, NVIDIA_SMI_INTERVAL" >&2
+    echo "         PROMETHEUS_*, NVIDIA_SMI_CSV_BASE, NVIDIA_SMI_INTERVAL" >&2
     exit 1
     ;;
 esac
