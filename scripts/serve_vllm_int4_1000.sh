@@ -17,16 +17,14 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
-# --- venv activation ---
-VENV_PATH="${VENV_PATH:-$ROOT/.venv}"
-if [ -f "$VENV_PATH/bin/activate" ]; then
+CONDA_BASE="${CONDA_BASE:-$HOME/miniconda3}"
+CONDA_ENV="${CONDA_ENV:-llm-inference}"
+if [ -f "$CONDA_BASE/etc/profile.d/conda.sh" ]; then
   # shellcheck source=/dev/null
-  . "$VENV_PATH/bin/activate"
-else
-  echo "Warning: venv not found at $VENV_PATH — skipping activation" >&2
+  . "$CONDA_BASE/etc/profile.d/conda.sh"
+  conda activate "$CONDA_ENV"
 fi
 
-# --- Config ---
 HOST="${VLLM_HOST:-0.0.0.0}"
 PORT="${VLLM_PORT:-8000}"
 MODEL="solidrust/Mistral-7B-Instruct-v0.3-AWQ"
@@ -34,19 +32,18 @@ SERVED_NAME="mistral-7b-int4"
 GPU_MEM="${GPU_UTIL:-0.80}"
 BASE_URL="http://127.0.0.1:${PORT}/v1"
 
-# --- Experiment output structure ---
+# Experiment: all run outputs go under outputs/<name>/
 EXPERIMENT_NAME="${EXPERIMENT_NAME:-vllm_int4}"
 EXPERIMENT_DIR="${EXPERIMENT_DIR:-$ROOT/outputs/$EXPERIMENT_NAME}"
 BENCH_IN="${BENCH_INPUT:-data/agnews_bench_1000.jsonl}"
 BENCH_OUT="${BENCH_OUTPUT:-$EXPERIMENT_DIR/bench_1000.json}"
-
 mkdir -p "$EXPERIMENT_DIR/nvidia_smi" 2>/dev/null || true
 
-# --- nvidia-smi ---
+# nvidia-smi: logs during each concurrency's warmup+measured phase (BENCH_NVIDIA_SMI=0 to disable)
 NVIDIA_SMI_CSV_BASE="${NVIDIA_SMI_CSV_BASE:-$EXPERIMENT_DIR/nvidia_smi/smi_1000.csv}"
 NVIDIA_SMI_INTERVAL="${NVIDIA_SMI_INTERVAL:-1.0}"
 
-# --- Benchmark config ---
+# Records as config_name in benchmark JSON; default matches the experiment
 CONFIG_NAME="${BENCH_CONFIG_NAME:-$EXPERIMENT_NAME}"
 
 case "${1:-}" in
@@ -92,8 +89,9 @@ case "${1:-}" in
     echo "  serve  — vllm serve (AWQ INT4) on ${HOST}:${PORT}" >&2
     echo "  bench  — sweep c 1,2,4,8,16 (default) + nvidia_smi/ CSV" >&2
     echo "         BENCH_NVIDIA_SMI=0 to skip GPU csv; BENCH_CONCURRENCY=N; BENCH_CONCURRENCY_LIST=1,4,8" >&2
-    echo "  env:   VENV_PATH (default .venv), VLLM_PORT, GPU_UTIL" >&2
-    echo "         EXPERIMENT_NAME (and EXPERIMENT_DIR=.../outputs/\$name), BENCH_*" >&2
+    echo "  conda: CONDA_BASE=$CONDA_BASE CONDA_ENV=$CONDA_ENV" >&2
+    echo "  model: MODEL=$MODEL SERVED_NAME=$SERVED_NAME" >&2
+    echo "  other: EXPERIMENT_NAME (and EXPERIMENT_DIR=.../outputs/\$name), BENCH_*, VLLM_PORT" >&2
     echo "         NVIDIA_SMI_CSV_BASE, NVIDIA_SMI_INTERVAL" >&2
     exit 1
     ;;

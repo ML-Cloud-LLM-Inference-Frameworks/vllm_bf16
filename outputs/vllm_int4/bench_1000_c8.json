@@ -1,0 +1,21 @@
+{
+  "config_name": "vllm_int4",
+  "model_id": "mistral-7b-int4",
+  "input_file": "data/agnews_bench_1000.jsonl",
+  "n_requests_measured": 990,
+  "warmup_requests": 10,
+  "concurrency": 8,
+  "throughput_req_per_s": 9.215569413681912,
+  "latency_avg_s": 0.8640434129514633,
+  "latency_p50_s": 0.6034318099846132,
+  "latency_p95_s": 1.5014059740060475,
+  "latency_p99_s": 1.5079399550158996,
+  "n_valid_predictions": 984,
+  "n_invalid_predictions": 6,
+  "accuracy_valid_only": 0.693089430894309,
+  "accuracy_overall_invalid_as_wrong": 0.6888888888888889,
+  "nvidia_smi": {
+    "csv": "/home/sgcjin/vllm_bf16/outputs/vllm_int4/nvidia_smi/smi_1000_c8.csv",
+    "interval_s": 1.0
+  }
+}
