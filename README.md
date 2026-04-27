@@ -49,7 +49,8 @@ conda activate llm-inference
 Run the Hugging Face baseline:
 
 ```bash
-export HF_BASELINE_MODEL_PATH=/home/hl3945/mistral-7b
+# Optional: default HF baseline loads from the Hub (common.config.MODEL_ID). For a local snapshot:
+# export HF_BASELINE_MODEL_PATH=/your/local/snapshot
 uvicorn services.hf_baseline.server:app --host 0.0.0.0 --port 8000
 ```
 
@@ -78,6 +79,21 @@ Useful checks:
 curl -sf http://127.0.0.1:8000/health && echo ready
 curl -s http://127.0.0.1:8000/metrics > logs/current_backend_metrics.prom
 ```
+
+## Four-config comparison UI
+
+From the repo root, with a GPU and enough disk (each config loads its own process on port `8000` one at a time):
+
+```bash
+conda activate llm-inference  # or your venv
+pip install -r requirements.txt
+# HF baseline uses the Hub model (MODEL_ID) unless you export HF_BASELINE_MODEL_PATH to a local directory.
+export VLLM_AWQ_MODEL=${VLLM_AWQ_MODEL:-solidrust/Mistral-7B-Instruct-v0.3-AWQ}
+./scripts/serve_frontend.sh
+# Open http://127.0.0.1:7860/ — submit one article (text) or a JSONL file, select backends, then the page opens `GET /api/jobs/{id}/events` (SSE) to stream the run. Progress is shown in the large on-page log; **nothing is written under** `outputs/` (each run uses a short-lived temp directory on the server).
+```
+
+- The UI uses [services/hf_baseline/server_streaming.py](services/hf_baseline/server_streaming.py) for the HF row; vLLM rows use Prometheus diffs and nvidia-smi in [services/frontend/runner.py](services/frontend/runner.py).
 
 ## Demo orchestrator
 

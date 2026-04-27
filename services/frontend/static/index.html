@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>4-config model comparison</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>4-config model comparison</h1>
+        <p class="sub">Sequential runs on port 8000: HF · vLLM BF16 · vLLM BF16+APC · vLLM AWQ INT4</p>
+      </header>
+
+      <section class="card panel">
+        <h2>Input</h2>
+        <div class="mode-row">
+          <label><input type="radio" name="mode" value="text" checked /> One article (text)</label>
+          <label
+            ><input type="radio" name="mode" value="jsonl" /> JSONL (same schema as
+            <code>data/*.jsonl</code>)</label
+          >
+        </div>
+        <textarea id="article" rows="8" placeholder="Paste a news article here…"></textarea>
+        <div class="row">
+          <input type="file" id="file" />
+        </div>
+        <div class="row" id="jsonlOpts" hidden>
+          <label>Concurrency <input type="number" id="concurrency" value="4" min="1" max="64" /></label>
+          <label>Limit first N lines <input type="number" id="limit" value="0" min="0" placeholder="0 = all" /></label>
+        </div>
+        <h3>Backends to run (leave all checked)</h3>
+        <div id="checkboxes" class="checks"></div>
+        <button type="button" id="go" class="primary">Start comparison</button>
+        <h2 class="log-h">Live log (watch here when it is slow)</h2>
+        <p class="log-hint">Nothing is saved to disk. If you close the tab or lose the connection, results are gone (last SSE frame has a summary).</p>
+        <pre id="log" class="log" aria-live="polite"></pre>
+      </section>
+
+      <section class="grid" id="cards"></section>
+
+      <section class="card" id="resultsPanel" hidden>
+        <h2>Results</h2>
+        <p class="sub results-hint">End-to-end numbers for the selected run (same as live cards above, in table form).</p>
+        <div class="table-scroll" id="resultTableHost"></div>
+      </section>
+
+      <section class="card">
+        <h2>Current run</h2>
+        <p class="sub"><code id="jobid"></code></p>
+      </section>
+    </div>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

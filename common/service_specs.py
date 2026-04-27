@@ -3,7 +3,7 @@ import shlex
 from dataclasses import dataclass, field
 from typing import Any
 
-from common.config import CONFIG_DIR, MODEL_ID, PROJECT_ROOT
+from common.config import CONFIG_DIR, MODEL_ID, PROJECT_ROOT, resolve_hf_baseline_path
 
 BACKEND_HOST = os.getenv("BACKEND_HOST", "127.0.0.1")
 BACKEND_PORT = int(os.getenv("BACKEND_PORT", "8000"))
@@ -48,7 +48,7 @@ def _vllm_policy(enable_prefix_caching: bool) -> dict[str, Any]:
 
 def get_service_specs() -> dict[str, ServiceSpec]:
     hf_model_id = os.getenv("HF_BASELINE_MODEL_ID", MODEL_ID)
-    hf_model_path = os.getenv("HF_BASELINE_MODEL_PATH", "/home/hl3945/mistral-7b")
+    hf_model_path = resolve_hf_baseline_path()
     awq_model = os.getenv("VLLM_AWQ_MODEL", "").strip()
 
     vllm_bf16_config = str((CONFIG_DIR / "vllm_bf16.yaml").resolve())
@@ -83,7 +83,7 @@ def get_service_specs() -> dict[str, ServiceSpec]:
             },
             launch_notes=(
                 "This backend uses the Hugging Face server in services/hf_baseline/server.py.",
-                "Set HF_BASELINE_MODEL_PATH on the VM if your local checkpoint lives somewhere else.",
+                "Unset HF_BASELINE_MODEL_PATH to use the Hub model (common.config.MODEL_ID), or set it to a local snapshot directory.",
             ),
         ),
         "vllm_bf16": ServiceSpec(
