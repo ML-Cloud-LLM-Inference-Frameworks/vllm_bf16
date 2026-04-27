@@ -40,7 +40,7 @@ print("loading model...")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_PATH,
-    torch_dtype=resolve_dtype(DTYPE_NAME),
+    dtype=resolve_dtype(DTYPE_NAME),
     device_map="auto",
 )
 model.eval()
@@ -85,9 +85,9 @@ class ClassifyResponse(BaseModel):
 
 def run_inference(prompt: str) -> tuple[str, float, float]:
     messages = [{"role": "user", "content": prompt}]
-    input_ids = tokenizer.apply_chat_template(
-        messages, add_generation_prompt=True, return_tensors="pt"
-    ).to("cuda")
+    chat_text = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+    inputs = tokenizer(chat_text, return_tensors="pt").to("cuda")
+    input_ids = inputs["input_ids"]
 
     streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
     gen_kwargs = {
