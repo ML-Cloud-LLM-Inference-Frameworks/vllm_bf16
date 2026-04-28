@@ -51,6 +51,7 @@ case "${1:-}" in
         --max-num-seqs "$MAX_NUM_SEQS" \
         --max-num-batched-tokens "$MAX_NUM_BATCHED_TOKENS" \
         --enable-chunked-prefill \
+        --no-enable-prefix-caching \
         --gpu-memory-utilization "$GPU_MEM" \
         --max-model-len "$MAX_MODEL_LEN"
     else
@@ -62,6 +63,7 @@ case "${1:-}" in
         --max-num-seqs "$MAX_NUM_SEQS" \
         --max-num-batched-tokens "$MAX_NUM_BATCHED_TOKENS" \
         --enable-chunked-prefill \
+        --no-enable-prefix-caching \
         --gpu-memory-utilization "$GPU_MEM" \
         --max-model-len "$MAX_MODEL_LEN"
     fi

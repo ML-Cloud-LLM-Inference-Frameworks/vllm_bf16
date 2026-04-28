@@ -96,17 +96,16 @@ def _user_text(msgs: list[Message]) -> str:
     return ""
 
 
-def _mistr_inst(user_block: str) -> str:
-    t = (user_block or "").strip()
-    if t.startswith("[INST]") or t.startswith("You are a "):
-        return t
-    return f"[INST] {user_block} [/INST]"
+def _tokenize_chat_prompt(user_block: str):
+    messages = [{"role": "user", "content": user_block}]
+    chat_text = _tok.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+    return _tok(chat_text, return_tensors="pt").to("cuda")
 
 
 def _run_inference(prompt: str) -> tuple[str, float, float]:
-    s = _mistr_inst(prompt)
-    ins = _tok(s, return_tensors="pt").to("cuda")
-    streamer = TextIteratorStreamer(_tok, skip_special_tokens=True)
+    ins = _tokenize_chat_prompt(prompt)
+    # Skip prompt echo so downstream parsing sees only the generated label text.
+    streamer = TextIteratorStreamer(_tok, skip_prompt=True, skip_special_tokens=True)
     gen_kw: dict[str, Any] = {
         **{k: v for k, v in ins.items()},
         "max_new_tokens": MAX_TOKENS,
@@ -135,10 +134,9 @@ def _run_inference(prompt: str) -> tuple[str, float, float]:
 
 def _iter_streaming(body: str, model_name: str, cap: int):
     """Yield SSE `data: …` lines for one completion."""
-    s = _mistr_inst(body)
-    ins = _tok(s, return_tensors="pt").to("cuda")
+    ins = _tokenize_chat_prompt(body)
     n_prompt = int(ins["input_ids"].shape[1])
-    streamer = TextIteratorStreamer(_tok, skip_special_tokens=True)
+    streamer = TextIteratorStreamer(_tok, skip_prompt=True, skip_special_tokens=True)
     gen_kw: dict[str, Any] = {k: v for k, v in ins.items()}
     gen_kw.update(
         {

@@ -5,7 +5,6 @@ import io
 import json
 import math
 import re
-import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -18,7 +17,6 @@ BACKENDS = [
         "slug": "hf_baseline_bf16",
         "label": "HF baseline bf16",
         "short_label": "HF baseline",
-        "ref": "origin/haotian/hf-baseline",
         "bench_template": "outputs/hf_baseline_bf16/bench_1000_c{c}.json",
         "nvidia_template": "outputs/hf_baseline_bf16/nvidia_smi/smi_1000_c{c}.csv",
         "prom_template": None,
@@ -29,7 +27,6 @@ BACKENDS = [
         "slug": "vllm_bf16",
         "label": "vLLM bf16",
         "short_label": "vLLM bf16",
-        "ref": "origin/main",
         "bench_template": "outputs/vllm_bf16/bench_1000_c{c}.json",
         "nvidia_template": "outputs/vllm_bf16/nvidia_smi/smi_1000_c{c}.csv",
         "prom_template": "outputs/vllm_bf16/proms/prom_1000_c{c}.json",
@@ -40,7 +37,6 @@ BACKENDS = [
         "slug": "vllm_bf16_prefixcaching",
         "label": "vLLM bf16 + prefix caching",
         "short_label": "vLLM + APC",
-        "ref": "origin/main",
         "bench_template": "outputs/vllm_bf16_prefixcaching/bench_1000_c{c}.json",
         "nvidia_template": "outputs/vllm_bf16_prefixcaching/nvidia_smi/smi_1000_c{c}.csv",
         "prom_template": "outputs/vllm_bf16_prefixcaching/proms/prom_1000_c{c}.json",
@@ -51,7 +47,6 @@ BACKENDS = [
         "slug": "vllm_int4",
         "label": "vLLM int4",
         "short_label": "vLLM int4",
-        "ref": "origin/main",
         "bench_template": "outputs/vllm_int4/bench_1000_c{c}.json",
         "nvidia_template": "outputs/vllm_int4/nvidia_smi/smi_1000_c{c}.csv",
         "prom_template": "outputs/vllm_int4/proms/prom_1000_c{c}.json",
@@ -64,19 +59,12 @@ PROM_LINE_RE = re.compile(
 )
 
 
-def git_show_text(ref: str, path: str) -> str:
-    result = subprocess.run(
-        ["git", "show", f"{ref}:{path}"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return result.stdout
+def read_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
 
 
-def load_json_from_git(ref: str, path: str) -> dict:
-    return json.loads(git_show_text(ref, path))
+def load_json(path: Path) -> dict:
+    return json.loads(read_text(path))
 
 
 def parse_percent_or_mib(raw: str) -> float | None:
@@ -152,16 +140,49 @@ def mean_from_sum_and_count(metrics: dict[str, list[float]], base_name: str) -> 
     return total / count
 
 
+def sample_metric_sum(samples: dict[str, float], metric_name: str) -> float | None:
+    values = [value for key, value in samples.items() if key == metric_name or key.startswith(f"{metric_name}{{")]
+    if not values:
+        return None
+    return sum(values)
+
+
 def derive_vllm_metrics(prometheus_doc: dict, bench_doc: dict) -> dict:
-    raw_text = prometheus_doc.get("raw_prometheus", "")
-    metrics = parse_prometheus_text(raw_text) if raw_text else {}
     derived: dict[str, float | None] = {}
+    prom_block = bench_doc.get("prometheus") or {}
+    bench_derived = prom_block.get("derived") or {}
+    polling = prom_block.get("polling") or {}
+    samples = prometheus_doc.get("samples") or {}
 
-    derived["ttft_mean_s"] = mean_from_sum_and_count(metrics, "vllm:time_to_first_token_seconds")
+    for key in (
+        "ttft_mean_s",
+        "e2e_latency_mean_s",
+        "queue_time_mean_s",
+        "inference_time_mean_s",
+        "prefill_time_mean_s",
+        "decode_time_mean_s",
+        "inter_token_latency_mean_s",
+        "kv_cache_usage_perc_max",
+        "prefix_cache_hits",
+        "prefix_cache_queries",
+        "prefix_cache_hit_rate",
+    ):
+        derived[key] = bench_derived.get(key)
 
-    bench_derived = (bench_doc.get("prometheus") or {}).get("derived") or {}
-    if derived["ttft_mean_s"] is None and bench_derived.get("ttft_mean_s") is not None:
-        derived["ttft_mean_s"] = bench_derived["ttft_mean_s"]
+    if derived["kv_cache_usage_perc_max"] is None:
+        derived["kv_cache_usage_perc_max"] = polling.get("kv_cache_usage_perc_max")
+
+    derived["prompt_tokens_total"] = sample_metric_sum(samples, "vllm:prompt_tokens_total")
+    derived["prompt_tokens_cached_total"] = sample_metric_sum(samples, "vllm:prompt_tokens_cached_total")
+    derived["prompt_tokens_recomputed_total"] = sample_metric_sum(samples, "vllm:prompt_tokens_recomputed_total")
+    derived["generation_tokens_total"] = sample_metric_sum(samples, "vllm:generation_tokens_total")
+
+    if (
+        derived["prefix_cache_hit_rate"] is None
+        and derived["prefix_cache_hits"] not in (None, 0)
+        and derived["prefix_cache_queries"] not in (None, 0)
+    ):
+        derived["prefix_cache_hit_rate"] = derived["prefix_cache_hits"] / derived["prefix_cache_queries"]
 
     return derived
 
@@ -170,16 +191,17 @@ def build_rows() -> list[dict]:
     rows: list[dict] = []
     for backend in BACKENDS:
         for concurrency in CONCURRENCIES:
-            bench_path = backend["bench_template"].format(c=concurrency)
-            bench = load_json_from_git(backend["ref"], bench_path)
+            bench_rel = backend["bench_template"].format(c=concurrency)
+            bench_path = REPO_ROOT / bench_rel
+            bench = load_json(bench_path)
 
             row = {
                 "backend": backend["slug"],
                 "backend_label": backend["label"],
                 "backend_short_label": backend["short_label"],
                 "family": backend["family"],
-                "source_ref": backend["ref"],
-                "source_bench_path": bench_path,
+                "source_mode": "local_outputs",
+                "source_bench_path": str(bench_path),
                 "concurrency": concurrency,
                 "model_id": bench.get("model_id"),
                 "n_requests_measured": bench.get("n_requests_measured"),
@@ -192,6 +214,14 @@ def build_rows() -> list[dict]:
                 "ttft_avg_s": bench.get("ttft_avg_s"),
                 "ttft_p50_s": bench.get("ttft_p50_s"),
                 "ttft_p95_s": bench.get("ttft_p95_s"),
+                "service_latency_avg_s": bench.get("service_latency_avg_s"),
+                "service_latency_p50_s": bench.get("service_latency_p50_s"),
+                "service_latency_p95_s": bench.get("service_latency_p95_s"),
+                "service_latency_p99_s": bench.get("service_latency_p99_s"),
+                "queue_wait_avg_s": bench.get("queue_wait_avg_s"),
+                "queue_wait_p50_s": bench.get("queue_wait_p50_s"),
+                "queue_wait_p95_s": bench.get("queue_wait_p95_s"),
+                "queue_wait_p99_s": bench.get("queue_wait_p99_s"),
                 "n_valid_predictions": bench.get("n_valid_predictions"),
                 "n_invalid_predictions": bench.get("n_invalid_predictions"),
                 "accuracy_valid_only": bench.get("accuracy_valid_only"),
@@ -201,15 +231,17 @@ def build_rows() -> list[dict]:
             if row["throughput_req_per_s"] and row["n_requests_measured"]:
                 row["measured_window_s"] = row["n_requests_measured"] / row["throughput_req_per_s"]
 
-            nvidia_path = backend["nvidia_template"].format(c=concurrency)
-            nvidia_text = git_show_text(backend["ref"], nvidia_path)
-            row["source_nvidia_path"] = nvidia_path
+            nvidia_rel = backend["nvidia_template"].format(c=concurrency)
+            nvidia_path = REPO_ROOT / nvidia_rel
+            nvidia_text = read_text(nvidia_path)
+            row["source_nvidia_path"] = str(nvidia_path)
             row.update(parse_nvidia_csv(nvidia_text))
 
             if backend["prom_template"]:
-                prom_path = backend["prom_template"].format(c=concurrency)
-                prom_doc = load_json_from_git(backend["ref"], prom_path)
-                row["source_prometheus_path"] = prom_path
+                prom_rel = backend["prom_template"].format(c=concurrency)
+                prom_path = REPO_ROOT / prom_rel
+                prom_doc = load_json(prom_path)
+                row["source_prometheus_path"] = str(prom_path)
                 derived = derive_vllm_metrics(prom_doc, bench)
                 row.update(derived)
                 if row.get("ttft_avg_s") is None and row.get("ttft_mean_s") is not None:
@@ -368,6 +400,8 @@ def metrics_table(rows: list[dict]) -> str:
         "Concurrency",
         "Throughput",
         "Latency avg",
+        "Service latency avg",
+        "Queue wait avg",
         "Latency p50",
         "Latency p95",
         "Latency p99",
@@ -389,6 +423,8 @@ def metrics_table(rows: list[dict]) -> str:
             f"<td>c{row['concurrency']}</td>"
             f"<td>{html.escape(format_number(row.get('throughput_req_per_s'), 2))}</td>"
             f"<td>{html.escape(format_number(row.get('latency_avg_s'), 3))}</td>"
+            f"<td>{html.escape(format_number(row.get('service_latency_avg_s'), 3))}</td>"
+            f"<td>{html.escape(format_number(row.get('queue_wait_avg_s'), 3))}</td>"
             f"<td>{html.escape(format_number(row.get('latency_p50_s'), 3))}</td>"
             f"<td>{html.escape(format_number(row.get('latency_p95_s'), 3))}</td>"
             f"<td>{html.escape(format_number(row.get('latency_p99_s'), 3))}</td>"
@@ -471,6 +507,36 @@ def build_html(rows: list[dict], output_path: Path) -> None:
         line_chart_svg(rows, "latency_p95_s", "p95 latency vs concurrency", lambda value: f"{value:.2f}", "seconds"),
         line_chart_svg(rows, "latency_p99_s", "p99 latency vs concurrency", lambda value: f"{value:.2f}", "seconds"),
         line_chart_svg(rows, "ttft_avg_s", "Average TTFT vs concurrency", lambda value: f"{value:.2f}", "seconds"),
+        line_chart_svg(rows, "ttft_p50_s", "p50 TTFT vs concurrency", lambda value: f"{value:.2f}", "seconds"),
+        line_chart_svg(rows, "ttft_p95_s", "p95 TTFT vs concurrency", lambda value: f"{value:.2f}", "seconds"),
+        line_chart_svg(
+            rows,
+            "service_latency_avg_s",
+            "Average service latency vs concurrency",
+            lambda value: f"{value:.2f}",
+            "seconds",
+        ),
+        line_chart_svg(
+            rows,
+            "service_latency_p95_s",
+            "p95 service latency vs concurrency",
+            lambda value: f"{value:.2f}",
+            "seconds",
+        ),
+        line_chart_svg(
+            rows,
+            "queue_wait_avg_s",
+            "Average queue wait vs concurrency",
+            lambda value: f"{value:.2f}",
+            "seconds",
+        ),
+        line_chart_svg(
+            rows,
+            "queue_wait_p95_s",
+            "p95 queue wait vs concurrency",
+            lambda value: f"{value:.2f}",
+            "seconds",
+        ),
         line_chart_svg(
             rows,
             "accuracy_valid_only",
@@ -492,6 +558,97 @@ def build_html(rows: list[dict], output_path: Path) -> None:
         line_chart_svg(rows, "mem_util_max_pct", "Peak GPU memory utilization vs concurrency", lambda value: f"{value:.0f}%", "mem %"),
         line_chart_svg(rows, "mem_used_avg_mib", "Average GPU memory used vs concurrency", lambda value: f"{value:.0f}", "MiB"),
         line_chart_svg(rows, "mem_used_max_mib", "Peak GPU memory used vs concurrency", lambda value: f"{value:.0f}", "MiB"),
+        line_chart_svg(
+            rows,
+            "e2e_latency_mean_s",
+            "vLLM Prometheus end-to-end latency mean vs concurrency",
+            lambda value: f"{value:.3f}",
+            "seconds",
+        ),
+        line_chart_svg(
+            rows,
+            "queue_time_mean_s",
+            "vLLM Prometheus queue time mean vs concurrency",
+            lambda value: f"{value:.4f}",
+            "seconds",
+        ),
+        line_chart_svg(
+            rows,
+            "inference_time_mean_s",
+            "vLLM Prometheus inference time mean vs concurrency",
+            lambda value: f"{value:.3f}",
+            "seconds",
+        ),
+        line_chart_svg(
+            rows,
+            "prefill_time_mean_s",
+            "vLLM Prometheus prefill time mean vs concurrency",
+            lambda value: f"{value:.3f}",
+            "seconds",
+        ),
+        line_chart_svg(
+            rows,
+            "decode_time_mean_s",
+            "vLLM Prometheus decode time mean vs concurrency",
+            lambda value: f"{value:.3f}",
+            "seconds",
+        ),
+        line_chart_svg(
+            rows,
+            "inter_token_latency_mean_s",
+            "vLLM Prometheus inter-token latency mean vs concurrency",
+            lambda value: f"{value:.3f}",
+            "seconds",
+        ),
+        line_chart_svg(
+            rows,
+            "kv_cache_usage_perc_max",
+            "vLLM peak KV-cache usage vs concurrency",
+            lambda value: f"{value * 100:.2f}%",
+            "KV cache %",
+        ),
+        line_chart_svg(
+            rows,
+            "prefix_cache_hit_rate",
+            "vLLM prefix-cache hit rate vs concurrency",
+            lambda value: f"{value * 100:.1f}%",
+            "hit rate",
+        ),
+        line_chart_svg(
+            rows,
+            "prefix_cache_queries",
+            "vLLM prefix-cache queries vs concurrency",
+            lambda value: f"{value:.0f}",
+            "queries",
+        ),
+        line_chart_svg(
+            rows,
+            "prefix_cache_hits",
+            "vLLM prefix-cache hits vs concurrency",
+            lambda value: f"{value:.0f}",
+            "hits",
+        ),
+        line_chart_svg(
+            rows,
+            "prompt_tokens_total",
+            "vLLM prompt tokens total vs concurrency",
+            lambda value: f"{value:.0f}",
+            "tokens",
+        ),
+        line_chart_svg(
+            rows,
+            "prompt_tokens_cached_total",
+            "vLLM cached prompt tokens vs concurrency",
+            lambda value: f"{value:.0f}",
+            "tokens",
+        ),
+        line_chart_svg(
+            rows,
+            "generation_tokens_total",
+            "vLLM generation tokens total vs concurrency",
+            lambda value: f"{value:.0f}",
+            "tokens",
+        ),
     ]
 
     html_doc = f"""<!DOCTYPE html>
@@ -654,9 +811,11 @@ def build_html(rows: list[dict], output_path: Path) -> None:
   <main>
     <h1>Four-backend benchmark comparison</h1>
     <p class="lede">
-      This report compares the three vLLM result folders from <code>origin/main</code> with the
-      HF baseline result folder from <code>origin/haotian/hf-baseline</code>. It was generated
-      directly from branch artifacts with <code>git show</code>, so no branch checkout or merge was required.
+      This report compares the current local output folders for <code>hf_baseline_bf16</code>,
+      <code>vllm_bf16</code>, <code>vllm_bf16_prefixcaching</code>, and <code>vllm_int4</code>.
+      It includes benchmark JSON metrics, GPU metrics summarized from the per-run
+      <code>nvidia_smi</code> CSVs, and vLLM-only Prometheus-derived metrics such as queue time,
+      prefill/decode time, prefix-cache activity, and peak KV-cache usage observed during the run.
     </p>
     <div class="meta">
       Generated at {html.escape(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"))}.
@@ -666,8 +825,9 @@ def build_html(rows: list[dict], output_path: Path) -> None:
     <section>
       <h2>Common Metrics</h2>
       <p class="note">
-        TTFT is compared across all four backends, but it comes from different instrumentation:
-        HF baseline uses per-response timing, while vLLM uses the Prometheus time-to-first-token mean when the benchmark JSON omits TTFT.
+        End-to-end latency includes local semaphore wait. The table and charts below also show
+        service-only latency and queue-wait decomposition from the refreshed benchmark harness.
+        vLLM-only Prometheus charts appear further down and are blank for the HF baseline by design.
       </p>
     </section>
     {''.join(charts)}
@@ -689,7 +849,7 @@ def main() -> None:
 
     payload = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
-        "sources": [{key: backend[key] for key in ("slug", "label", "ref", "bench_template", "prom_template", "nvidia_template")} for backend in BACKENDS],
+        "sources": [{key: backend[key] for key in ("slug", "label", "bench_template", "prom_template", "nvidia_template")} for backend in BACKENDS],
         "concurrencies": CONCURRENCIES,
         "rows": rows,
     }

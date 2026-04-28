@@ -7,7 +7,7 @@
 #   ./scripts/serve_hf_baseline_1000.sh bench   # run in another terminal
 #
 # Env overrides:
-#   HF_BASELINE_MODEL_PATH  path to local model weights (default: /home/hl3945/mistral-7b)
+#   HF_BASELINE_MODEL_PATH  path to local model weights (default: local instruct checkpoint if present, else Hub)
 #   HF_BASELINE_PORT        port for uvicorn (default: 8000)
 #   BENCH_CONCURRENCY       single concurrency run (e.g. BENCH_CONCURRENCY=1)
 #   BENCH_CONCURRENCY_LIST  comma-separated list (default: 1,2,4,8,16)
@@ -30,7 +30,10 @@ fi
 HOST="${HF_BASELINE_HOST:-0.0.0.0}"
 PORT="${HF_BASELINE_PORT:-8000}"
 MODEL_HUB="${HF_BASELINE_MODEL_ID:-mistralai/Mistral-7B-Instruct-v0.3}"
-export HF_BASELINE_MODEL_PATH="${HF_BASELINE_MODEL_PATH:-/home/hl3945/mistral-7b}"
+export HF_BASELINE_MODEL_PATH="${HF_BASELINE_MODEL_PATH:-}"
+if [ -z "$HF_BASELINE_MODEL_PATH" ] && [ -d /home/sgcjin/mistral_models/7B-Instruct-v0.3 ]; then
+  export HF_BASELINE_MODEL_PATH="/home/sgcjin/mistral_models/7B-Instruct-v0.3"
+fi
 export HF_BASELINE_CONFIG_NAME="${HF_BASELINE_CONFIG_NAME:-hf_baseline_bf16}"
 
 BASE_URL="http://127.0.0.1:${PORT}/v1"
@@ -77,7 +80,7 @@ case "${1:-}" in
     echo "  serve  — start uvicorn HF baseline on ${HOST}:${PORT} (blocks)" >&2
     echo "  bench  — sweep c 1,2,4,8,16 (default) + nvidia_smi/ CSV" >&2
     echo "           BENCH_NVIDIA_SMI=0 to skip GPU csv; BENCH_CONCURRENCY=N for single run" >&2
-    echo "  model: HF_BASELINE_MODEL_PATH (default: /home/hl3945/mistral-7b)" >&2
+    echo "  model: HF_BASELINE_MODEL_PATH (default: /home/sgcjin/mistral_models/7B-Instruct-v0.3 if present, else Hub)" >&2
     echo "  other: EXPERIMENT_NAME, HF_BASELINE_PORT, BENCH_CONCURRENCY_LIST" >&2
     exit 1
     ;;
