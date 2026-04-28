@@ -113,6 +113,12 @@ textarea#article {
   margin: 0.3rem 0 0.6rem 0;
   font-size: 0.9rem;
 }
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
 .file-hint {
   margin: 0.35rem 0 0 0;
   color: var(--mut);
@@ -139,7 +145,20 @@ button.primary {
   font-size: 0.95rem;
   cursor: pointer;
 }
+button.secondary {
+  background: #161a20;
+  border: 1px solid var(--bord);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
 button.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+button.secondary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

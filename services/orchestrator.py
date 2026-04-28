@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import os
 import signal
+import socket
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -15,6 +17,19 @@ from common.service_specs import ServiceSpec, get_orchestrator_cwd, get_service_
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _port_is_listening(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(0.5)
+        return sock.connect_ex((host, port)) == 0
+
+
+def _health_url_host_port(url: str) -> tuple[str, int]:
+    parts = urlsplit(url)
+    host = parts.hostname or "127.0.0.1"
+    port = int(parts.port or (443 if parts.scheme == "https" else 80))
+    return host, port
 
 
 class BackendServiceManager:
@@ -169,6 +184,12 @@ class BackendServiceManager:
             self._switch_task = None
 
     async def _start_process_locked(self, spec: ServiceSpec) -> None:
+        host, port = _health_url_host_port(spec.health_url)
+        if _port_is_listening(host, port):
+            raise RuntimeError(
+                f"Refusing to launch {spec.name}: {host}:{port} is already occupied by another process. "
+                "Stop any manually started backend on the VM before using the UI."
+            )
         LOG_DIR.mkdir(parents=True, exist_ok=True)
         self._log_path = LOG_DIR / f"{spec.name}.log"
         self._log_handle = self._log_path.open("ab")

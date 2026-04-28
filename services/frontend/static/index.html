@@ -21,7 +21,10 @@
         </div>
         <textarea id="article" rows="8" placeholder="Paste one article here, or upload one or more .txt files below."></textarea>
         <div class="row">
-          <input type="file" id="file" multiple accept=".txt,text/plain" />
+          <div class="file-row">
+            <input type="file" id="file" multiple accept=".txt,text/plain" />
+            <button type="button" id="clearFiles" class="secondary">Clear files</button>
+          </div>
           <p class="file-hint" id="fileHint">Text mode accepts one or more .txt files. Each file is treated as one full input.</p>
         </div>
         <div class="row">

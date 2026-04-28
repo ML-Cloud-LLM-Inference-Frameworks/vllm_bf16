@@ -33,6 +33,14 @@ function backendLabel(id) {
   return configIdToLabel[id] || id;
 }
 
+function clearSelectedFiles() {
+  const file = $("file");
+  if (file) file.value = "";
+  const article = $("article");
+  const clearBtn = $("clearFiles");
+  if (clearBtn) clearBtn.blur();
+}
+
 async function loadConfigs() {
   const r = await fetch("/api/configs");
   if (!r.ok) throw new Error("configs");
@@ -72,13 +80,13 @@ function onMode() {
   const file = $("file");
   const fileHint = $("fileHint");
   if (m === "jsonl") {
-    if (article) article.placeholder = "Optional note box. Upload one JSONL file below.";
+    if (article) article.placeholder = "Paste JSONL lines here, or upload one .jsonl file below.";
     if (limitRow) limitRow.hidden = false;
     if (file) {
       file.multiple = false;
       file.accept = ".jsonl,application/jsonl,text/plain";
     }
-    if (fileHint) fileHint.textContent = "JSONL mode accepts exactly one .jsonl file. Each line should be a JSON object with a text field.";
+    if (fileHint) fileHint.textContent = "JSONL mode accepts one pasted JSONL batch or one uploaded .jsonl file. Each line should be a JSON object with a text field.";
   } else {
     if (article) article.placeholder = "Paste one article here, or upload one or more .txt files below.";
     if (limitRow) limitRow.hidden = true;
@@ -298,10 +306,8 @@ async function go() {
   const form = new FormData();
   form.set("mode", m);
   form.set("concurrency", String(+$("concurrency")?.value || 4));
+  form.set("text", $("article")?.value || "");
   const lim = +$("limit")?.value;
-  if (m === "text") {
-    form.set("text", $("article")?.value || "");
-  }
   if (lim) form.set("limit", String(lim));
   const ids = selectedConfigIds();
   if (ids.length) form.set("configs", JSON.stringify(ids));
@@ -309,8 +315,9 @@ async function go() {
   const file = $("file");
   const selectedFiles = file?.files ? Array.from(file.files) : [];
   if (m === "jsonl") {
-    if (!selectedFiles.length) throw new Error("jsonl mode requires one .jsonl file");
-    form.append("files", selectedFiles[0], selectedFiles[0].name);
+    const pasted = ($("article")?.value || "").trim();
+    if (!selectedFiles.length && !pasted) throw new Error("jsonl mode requires one .jsonl file or pasted JSONL");
+    if (selectedFiles.length) form.append("files", selectedFiles[0], selectedFiles[0].name);
   } else {
     for (const f of selectedFiles) {
       form.append("files", f, f.name);
@@ -324,6 +331,7 @@ async function go() {
       throw new Error(t || String(st.status));
     }
     const job = await st.json();
+    clearSelectedFiles();
     if ($("jobid")) $("jobid").textContent = job.id;
     if (log) appendLog(log, "job id=" + job.id + " - listening on SSE...");
 
@@ -357,6 +365,7 @@ async function go() {
 
 document.addEventListener("DOMContentLoaded", () => {
   $("go")?.addEventListener("click", () => go().catch((err) => console.error(err)));
+  $("clearFiles")?.addEventListener("click", clearSelectedFiles);
   modeRadios().forEach((r) => r.addEventListener("change", onMode));
   onMode();
   loadConfigs().catch((err) => console.error(err));

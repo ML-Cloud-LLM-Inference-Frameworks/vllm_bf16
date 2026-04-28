@@ -63,3 +63,22 @@ def test_jsonl_mode_accepts_single_jsonl_upload() -> None:
     assert job.mode == "jsonl"
     assert job.jsonl_path is not None
     assert job.jsonl_path.suffix == ".jsonl"
+
+
+def test_jsonl_mode_accepts_pasted_jsonl_text() -> None:
+    data = {
+        "mode": "jsonl",
+        "text": '{"text":"hello"}\n{"text":"world"}\n',
+        "configs": '["vllm_bf16"]',
+        "concurrency": "4",
+        "limit": "0",
+    }
+    with TestClient(app) as client:
+        resp = client.post("/api/jobs", data=data)
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    job = _PENDING[payload["id"]]
+    assert job.mode == "jsonl"
+    assert job.jsonl_path is not None
+    assert job.jsonl_path.suffix == ".jsonl"
+    assert job.jsonl_path.read_text(encoding="utf-8") == data["text"]

@@ -150,9 +150,16 @@ async def api_create_job(
         if not text_inputs:
             raise HTTPException(400, "text mode: provide pasted text or upload one or more .txt files")
     else:
-        if len(uploaded_files) != 1 or uploaded_files[0][1].suffix.lower() != ".jsonl":
-            raise HTTPException(400, "jsonl mode: upload exactly one .jsonl file")
-        jsonl_path = uploaded_files[0][1]
+        if uploaded_files:
+            if len(uploaded_files) != 1 or uploaded_files[0][1].suffix.lower() != ".jsonl":
+                raise HTTPException(400, "jsonl mode: upload exactly one .jsonl file")
+            jsonl_path = uploaded_files[0][1]
+        elif text_body:
+            pasted_path = udir / f"pasted_{uuid.uuid4().hex}.jsonl"
+            pasted_path.write_text(text_body, encoding="utf-8")
+            jsonl_path = pasted_path
+        else:
+            raise HTTPException(400, "jsonl mode: upload one .jsonl file or paste JSONL lines into the text box")
     j = create_job(
         "jsonl" if mode == "jsonl" else "text",
         text=None if mode == "jsonl" else text_body,
