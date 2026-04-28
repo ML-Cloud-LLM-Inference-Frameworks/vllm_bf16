@@ -1,0 +1,29 @@
+{
+  "config_name": "hf_baseline_bf16",
+  "model_id": "mistralai/Mistral-7B-Instruct-v0.3",
+  "input_file": "data/agnews_bench_1000.jsonl",
+  "n_requests_measured": 990,
+  "warmup_requests": 10,
+  "concurrency": 8,
+  "throughput_req_per_s": 3.0070955652307094,
+  "latency_avg_s": 2.656663648373737,
+  "latency_p50_s": 1.7036384069999713,
+  "latency_p95_s": 6.410579703999929,
+  "latency_p99_s": 6.6468801189998885,
+  "ttft_avg_s": 0.8336378787878788,
+  "ttft_p50_s": 0.8332,
+  "ttft_p95_s": 0.8726,
+  "n_valid_predictions": 977,
+  "n_invalid_predictions": 13,
+  "accuracy_valid_only": 0.781985670419652,
+  "accuracy_overall_invalid_as_wrong": 0.7717171717171717,
+  "nvidia_smi": {
+    "csv": "outputs/hf_baseline_bf16/nvidia_smi/smi_1000_c8.csv",
+    "interval_s": 1.0,
+    "summary": {
+      "samples": 332,
+      "timestamp_first": "2026/04/27 18:31:10.064",
+      "timestamp_last": "2026/04/27 18:36:41.477"
+    }
+  }
+}

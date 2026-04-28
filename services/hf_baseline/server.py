@@ -2,12 +2,13 @@ import os
 import sys
 import time
 from pathlib import Path
+from threading import Thread
 from typing import Optional
 
 import torch
 from fastapi import FastAPI
 from pydantic import BaseModel
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from common.config import MAX_TOKENS, MODEL_ID, PROMPT_PATH, resolve_hf_baseline_path
@@ -70,6 +71,7 @@ class ChatResponse(BaseModel):
     model: str
     choices: list[Choice]
     latency_s: float
+    ttft_s: float
 
 
 class ClassifyRequest(BaseModel):
@@ -81,27 +83,41 @@ class ClassifyResponse(BaseModel):
     prediction: Optional[str]
     raw_output: str
     latency_s: float
+    ttft_s: float
 
 
-def run_inference(prompt: str) -> tuple[str, float]:
-    formatted = f"[INST] {prompt} [/INST]"
-    inputs = tokenizer(formatted, return_tensors="pt").to("cuda")
+def run_inference(prompt: str) -> tuple[str, float, float]:
+    messages = [{"role": "user", "content": prompt}]
+    chat_text = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+    inputs = tokenizer(chat_text, return_tensors="pt").to("cuda")
+    input_ids = inputs["input_ids"]
+
+    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+    gen_kwargs = {
+        "input_ids": input_ids,
+        "streamer": streamer,
+        "max_new_tokens": MAX_TOKENS,
+        "do_sample": False,
+        "temperature": None,
+        "top_p": None,
+        "pad_token_id": tokenizer.eos_token_id,
+    }
+
     t0 = time.perf_counter()
-    with torch.no_grad():
-        out = model.generate(
-            **inputs,
-            max_new_tokens=MAX_TOKENS,
-            do_sample=False,
-            temperature=None,
-            top_p=None,
-            pad_token_id=tokenizer.eos_token_id,
-        )
-    latency = time.perf_counter() - t0
-    raw = tokenizer.decode(
-        out[0][inputs["input_ids"].shape[1] :],
-        skip_special_tokens=True,
-    ).strip()
-    return raw, latency
+    thread = Thread(target=model.generate, kwargs=gen_kwargs)
+    thread.start()
+
+    ttft: float | None = None
+    chunks: list[str] = []
+    for chunk in streamer:
+        if ttft is None:
+            ttft = time.perf_counter() - t0
+        chunks.append(chunk)
+
+    thread.join()
+    total_latency = time.perf_counter() - t0
+    raw = "".join(chunks).strip()
+    return raw, total_latency, ttft if ttft is not None else total_latency
 
 
 @app.get("/health")
@@ -112,7 +128,7 @@ def health():
 @app.post("/v1/chat/completions")
 def chat_completions(req: ChatRequest):
     user_msg = next((m.content for m in req.messages if m.role == "user"), "")
-    raw, latency = run_inference(user_msg)
+    raw, latency, ttft = run_inference(user_msg)
     return ChatResponse(
         model=req.model,
         choices=[
@@ -123,16 +139,18 @@ def chat_completions(req: ChatRequest):
             )
         ],
         latency_s=round(latency, 4),
+        ttft_s=round(ttft, 4),
     )
 
 
 @app.post("/classify", response_model=ClassifyResponse)
 def classify(req: ClassifyRequest):
     prompt = PROMPT_TEMPLATE.format(article=req.text)
-    raw, latency = run_inference(prompt)
+    raw, latency, ttft = run_inference(prompt)
     return ClassifyResponse(
         config_name=CONFIG_NAME,
         prediction=parse_label(raw),
         raw_output=raw,
         latency_s=round(latency, 4),
+        ttft_s=round(ttft, 4),
     )
