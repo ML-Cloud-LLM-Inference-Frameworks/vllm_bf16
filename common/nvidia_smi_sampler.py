@@ -9,6 +9,10 @@ import subprocess
 from pathlib import Path
 from typing import Generator
 
+# Field names for --query-gpu= must be bare (e.g. memory.total). Do NOT use
+# "memory.total [MiB]" in the query — that form is output-only; many drivers
+# reject it with: Field "memory.total [MiB]" is not a valid field to query.
+# The printed CSV header line still shows [MiB] / [%] where applicable.
 _DEFAULT_QUERY = (
     "timestamp,name,memory.total,memory.used,memory.free,"
     "utilization.gpu,utilization.memory"
@@ -27,6 +31,10 @@ def nvidia_smi_log_csv(
     query: str = _DEFAULT_QUERY,
     executable: str = "nvidia-smi",
 ) -> Generator[Path, None, None]:
+    """
+    Spawns: nvidia-smi -l <s> in loop mode, writing CSV to ``out_path``, while
+    the context body runs. Terminates the child on exit.
+    """
     path = Path(out_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     ex = shutil.which(executable) or executable
@@ -41,7 +49,11 @@ def nvidia_smi_log_csv(
     f = open(path, "w", encoding="utf-8")
     p: subprocess.Popen[bytes] | None = None
     try:
-        p = subprocess.Popen(cmd, stdout=f, stderr=subprocess.DEVNULL)
+        p = subprocess.Popen(
+            cmd,
+            stdout=f,
+            stderr=subprocess.DEVNULL,
+        )
     except OSError as e:
         f.close()
         if path.exists() and path.stat().st_size == 0:

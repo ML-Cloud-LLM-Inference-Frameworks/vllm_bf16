@@ -62,7 +62,7 @@ case "${1:-}" in
     if [ "${BENCH_NVIDIA_SMI:-1}" != "0" ]; then
       NV_SMI=(--nvidia-smi-csv "$NVIDIA_SMI_CSV_BASE" --nvidia-smi-interval "${NVIDIA_SMI_INTERVAL}")
     fi
-    python "$ROOT/scripts/benchmark.py" \
+    python3 "$ROOT/scripts/benchmark_hf.py" \
       --input "$BENCH_IN" \
       --base-url "$BASE_URL" \
       --model-id "$MODEL_HUB" \
