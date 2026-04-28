@@ -5,6 +5,7 @@ const mode = () => [...modeRadios()].find((r) => r.checked)?.value || "text";
 
 /** @type {Record<string, string>} */
 let configIdToLabel = {};
+let backendStatusTimer = null;
 
 const LOG_MAX = 500;
 
@@ -16,11 +17,20 @@ function ts() {
 function appendLog(pre, line) {
   if (!pre) return;
   pre.textContent += `${ts()} ${line}\n`;
-  const L = pre.textContent.split("\n");
-  if (L.length > LOG_MAX) {
-    pre.textContent = L.slice(-LOG_MAX).join("\n");
+  const lines = pre.textContent.split("\n");
+  if (lines.length > LOG_MAX) {
+    pre.textContent = lines.slice(-LOG_MAX).join("\n");
   }
   pre.scrollTop = pre.scrollHeight;
+}
+
+function fmtF(n, d) {
+  if (n == null || Number.isNaN(Number(n))) return "-";
+  return Number(n).toFixed(d);
+}
+
+function backendLabel(id) {
+  return configIdToLabel[id] || id;
 }
 
 async function loadConfigs() {
@@ -43,8 +53,8 @@ async function loadConfigs() {
     const sp = document.createElement("span");
     sp.appendChild(ch);
     sp.append(` ${v.label} (${k}) `);
-    if (v.has_prometheus) sp.append(" [Prom]", " ");
-    if (isDis && v.unavailable_reason) sp.append(`— ${v.unavailable_reason} `);
+    if (v.has_prometheus) sp.append(" [Prom] ");
+    if (isDis && v.unavailable_reason) sp.append(`- ${v.unavailable_reason} `);
     d.appendChild(sp);
     el.appendChild(d);
   }
@@ -57,45 +67,68 @@ function selectedConfigIds() {
 
 function onMode() {
   const m = mode();
-  const ja = $("article");
-  const jo = $("jsonlOpts");
+  const article = $("article");
+  const limitRow = $("jsonlLimitRow");
+  const file = $("file");
+  const fileHint = $("fileHint");
   if (m === "jsonl") {
-    if (ja) ja.placeholder = "Optional if you upload a JSONL file";
-    if (jo) jo.hidden = false;
+    if (article) article.placeholder = "Optional note box. Upload one JSONL file below.";
+    if (limitRow) limitRow.hidden = false;
+    if (file) {
+      file.multiple = false;
+      file.accept = ".jsonl,application/jsonl,text/plain";
+    }
+    if (fileHint) fileHint.textContent = "JSONL mode accepts exactly one .jsonl file. Each line should be a JSON object with a text field.";
   } else {
-    if (ja) ja.placeholder = "Paste a news article here…";
-    if (jo) jo.hidden = true;
+    if (article) article.placeholder = "Paste one article here, or upload one or more .txt files below.";
+    if (limitRow) limitRow.hidden = true;
+    if (file) {
+      file.multiple = true;
+      file.accept = ".txt,text/plain";
+    }
+    if (fileHint) fileHint.textContent = "Text mode accepts one or more .txt files. Each file is treated as one full input.";
   }
-}
-
-function fmtF(n, d) {
-  if (n == null || Number.isNaN(Number(n))) return "—";
-  return Number(n).toFixed(d);
 }
 
 function fmtSummaryLine(s) {
-  if (!s || s.error) return s?.message || s?.error || "—";
-  const b = s.throughput_req_per_s;
-  if (b != null) {
-    return `tput ${b.toFixed(2)} r/s p50 ${(s.latency_p50_s ?? 0).toFixed(3)}s acc ${((s.accuracy_valid_only || 0) * 100).toFixed(1)}% (valid only)`;
+  if (!s || s.error) return s?.message || s?.error || "-";
+  if (Array.isArray(s.items)) {
+    return `${s.n_inputs || s.items.length} inputs | tput ${fmtF(s.throughput_req_per_s, 2)} r/s | p50 ${fmtF(s.latency_p50_s, 3)}s | TTFT avg ${fmtF(s.ttft_avg_s, 3)}s`;
   }
-  // Single-article run (pred_label is often null if the model did not return a clean label)
-  if (s.mode === "single_text" || s.latency_s != null || s.ttft_s != null || s.tps != null) {
-    const lab = s.pred_label != null ? String(s.pred_label) : "—";
-    return `label ${lab} | latency ${fmtF(s.latency_s, 3)}s | TTFT ${fmtF(s.ttft_s, 3)}s | TPS ${fmtF(s.tps, 1)}`;
+  if (s.throughput_req_per_s != null) {
+    const acc = s.accuracy_valid_only == null ? "-" : `${((s.accuracy_valid_only || 0) * 100).toFixed(1)}%`;
+    return `tput ${fmtF(s.throughput_req_per_s, 2)} r/s | p50 ${fmtF(s.latency_p50_s, 3)}s | acc ${acc}`;
   }
-  return "—";
+  return "-";
 }
 
-function backendLabel(id) {
-  return configIdToLabel[id] || id;
+function renderBackendStatus(status) {
+  const badge = $("backendStatus");
+  const active = $("backendActive");
+  const details = $("backendDetails");
+  if (!badge || !active || !details) return;
+  const state = status?.status || "idle";
+  badge.textContent = state;
+  badge.dataset.state = state;
+  const activeLabel = status?.active_label || backendLabel(status?.active_config_name) || "None";
+  active.textContent = activeLabel;
+  const parts = [];
+  if (status?.message) parts.push(status.message);
+  if (status?.pid) parts.push(`pid ${status.pid}`);
+  if (status?.desired_label && status?.desired_label !== activeLabel) parts.push(`target ${status.desired_label}`);
+  details.textContent = parts.join(" | ") || "No backend service is running.";
 }
 
-/**
- * @param {Record<string, any>} results
- * @param {Record<string, string>} errors
- * @param {string[]|undefined} order
- */
+async function refreshBackendStatus() {
+  try {
+    const r = await fetch("/api/backend-status");
+    if (!r.ok) throw new Error(String(r.status));
+    renderBackendStatus(await r.json());
+  } catch (err) {
+    renderBackendStatus({ status: "unknown", message: err?.message || String(err), active_label: "Unavailable" });
+  }
+}
+
 function renderResultTable(results, errors, order) {
   const host = $("resultTableHost");
   const panel = $("resultsPanel");
@@ -105,29 +138,27 @@ function renderResultTable(results, errors, order) {
   const r = results && typeof results === "object" ? results : {};
   const e = errors && typeof errors === "object" ? errors : {};
   const all = new Set([...Object.keys(r), ...Object.keys(e)]);
-  let ids;
-  if (order && order.length) {
-    const rest = [...all].filter((k) => !order.includes(k)).sort();
-    ids = [...order.filter((k) => all.has(k)), ...rest];
-  } else {
-    ids = [...all].sort();
-  }
+  const ids = order && order.length
+    ? [...order.filter((k) => all.has(k)), ...[...all].filter((k) => !order.includes(k)).sort()]
+    : [...all].sort();
+
   if (!ids.length) {
     if (panel) panel.hidden = true;
     return;
   }
   if (panel) panel.hidden = false;
 
-  const jsonl = mode() === "jsonl";
+  const isJsonl = mode() === "jsonl";
   const table = document.createElement("table");
   table.className = "data-table";
   const thead = document.createElement("thead");
-  if (jsonl) {
+  if (isJsonl) {
     thead.innerHTML = `<tr>
       <th>Backend</th>
       <th>Throughput (req/s)</th>
       <th>Latency p50 (s)</th>
       <th>Latency p95 (s)</th>
+      <th>TTFT avg (s)</th>
       <th>Accuracy (valid) %</th>
       <th>Measured n</th>
       <th>Error / note</th>
@@ -135,8 +166,10 @@ function renderResultTable(results, errors, order) {
   } else {
     thead.innerHTML = `<tr>
       <th>Backend</th>
+      <th>Input</th>
       <th>Predicted label</th>
       <th>Total latency (s)</th>
+      <th>Queue wait (s)</th>
       <th>TTFT (s)</th>
       <th>TPS</th>
       <th>Error / note</th>
@@ -146,165 +179,102 @@ function renderResultTable(results, errors, order) {
   const tbody = document.createElement("tbody");
 
   for (const id of ids) {
-    const tr = document.createElement("tr");
-    const nameCell = document.createElement("td");
-    nameCell.className = "backend-name";
-    nameCell.textContent = backendLabel(id);
-    tr.appendChild(nameCell);
-
-    const errFromJob = e[id];
     const v = r[id];
-    const resErr = v && typeof v === "object" && v.error != null ? String(v.error) : "";
-    const note = errFromJob || resErr;
-
-    if (jsonl) {
-      if (note) {
-        for (let i = 0; i < 5; i += 1) {
-          const td = document.createElement("td");
-          td.className = "num";
-          td.textContent = "—";
-          tr.appendChild(td);
-        }
-        const ncell = document.createElement("td");
-        ncell.className = "err-cell";
-        ncell.textContent = note;
-        tr.appendChild(ncell);
-      } else if (!v) {
-        for (let i = 0; i < 5; i += 1) {
-          const td = document.createElement("td");
-          td.className = "num";
-          td.textContent = "—";
-          tr.appendChild(td);
-        }
-        const ncell = document.createElement("td");
-        ncell.className = "err-cell";
-        ncell.textContent = "—";
-        tr.appendChild(ncell);
-      } else {
-        const t1 = document.createElement("td");
-        t1.className = "num";
-        t1.textContent = fmtF(v.throughput_req_per_s, 2);
-        const t2 = document.createElement("td");
-        t2.className = "num";
-        t2.textContent = fmtF(v.latency_p50_s, 3);
-        const t3 = document.createElement("td");
-        t3.className = "num";
-        t3.textContent = fmtF(v.latency_p95_s, 3);
-        const t4 = document.createElement("td");
-        t4.className = "num";
-        t4.textContent = v.accuracy_valid_only == null ? "—" : `${(v.accuracy_valid_only * 100).toFixed(1)}%`;
-        const t5 = document.createElement("td");
-        t5.className = "num";
-        t5.textContent = v.n_requests_measured == null ? "—" : String(v.n_requests_measured);
-        const t6 = document.createElement("td");
-        t6.className = "err-cell";
-        t6.textContent = "—";
-        tr.append(t1, t2, t3, t4, t5, t6);
-      }
-    } else {
-      if (note) {
-        for (let i = 0; i < 4; i += 1) {
-          const td = document.createElement("td");
-          td.className = "num";
-          td.textContent = "—";
-          tr.appendChild(td);
-        }
-        const ncell = document.createElement("td");
-        ncell.className = "err-cell";
-        ncell.textContent = note;
-        tr.appendChild(ncell);
-      } else if (!v) {
-        for (let i = 0; i < 4; i += 1) {
-          const td = document.createElement("td");
-          td.className = "num";
-          td.textContent = "—";
-          tr.appendChild(td);
-        }
-        const ncell = document.createElement("td");
-        ncell.className = "err-cell";
-        ncell.textContent = "—";
-        tr.appendChild(ncell);
-      } else {
-        const t1 = document.createElement("td");
-        t1.className = "num";
-        t1.textContent = v.pred_label != null ? String(v.pred_label) : "—";
-        const t2 = document.createElement("td");
-        t2.className = "num";
-        t2.textContent = fmtF(v.latency_s, 3);
-        const t3 = document.createElement("td");
-        t3.className = "num";
-        t3.textContent = fmtF(v.ttft_s, 3);
-        const t4 = document.createElement("td");
-        t4.className = "num";
-        t4.textContent = v.tps == null ? "—" : fmtF(v.tps, 1);
-        const t5 = document.createElement("td");
-        t5.className = "err-cell";
-        t5.textContent = "—";
-        tr.append(t1, t2, t3, t4, t5);
-      }
+    const note = e[id] || (v && typeof v === "object" && v.error != null ? String(v.error) : "");
+    if (isJsonl) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="backend-name">${backendLabel(id)}</td>
+        <td class="num">${note || !v ? "-" : fmtF(v.throughput_req_per_s, 2)}</td>
+        <td class="num">${note || !v ? "-" : fmtF(v.latency_p50_s, 3)}</td>
+        <td class="num">${note || !v ? "-" : fmtF(v.latency_p95_s, 3)}</td>
+        <td class="num">${note || !v ? "-" : fmtF(v.ttft_avg_s, 3)}</td>
+        <td class="num">${note || !v || v.accuracy_valid_only == null ? "-" : `${(v.accuracy_valid_only * 100).toFixed(1)}%`}</td>
+        <td class="num">${note || !v || v.n_requests_measured == null ? "-" : String(v.n_requests_measured)}</td>
+        <td class="err-cell">${note || v?.label_mode || "-"}</td>
+      `;
+      tbody.appendChild(tr);
+      continue;
     }
-    tbody.appendChild(tr);
+
+    const items = Array.isArray(v?.items) ? v.items : v ? [v] : [];
+    if (!items.length) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="backend-name">${backendLabel(id)}</td>
+        <td class="num">-</td>
+        <td class="num">-</td>
+        <td class="num">-</td>
+        <td class="num">-</td>
+        <td class="num">-</td>
+        <td class="num">-</td>
+        <td class="err-cell">${note || "-"}</td>
+      `;
+      tbody.appendChild(tr);
+      continue;
+    }
+    for (const item of items) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="backend-name">${backendLabel(id)}</td>
+        <td>${item.input_name || "-"}</td>
+        <td class="num">${item.pred_label != null ? String(item.pred_label) : "-"}</td>
+        <td class="num">${fmtF(item.latency_s, 3)}</td>
+        <td class="num">${fmtF(item.queue_wait_s, 3)}</td>
+        <td class="num">${fmtF(item.ttft_s, 3)}</td>
+        <td class="num">${item.tps == null ? "-" : fmtF(item.tps, 1)}</td>
+        <td class="err-cell">${note || "-"}</td>
+      `;
+      tbody.appendChild(tr);
+    }
   }
   table.appendChild(tbody);
   host.appendChild(table);
 }
 
-function setCard(cards, id, u) {
+function setCard(cards, id, update) {
   let c = cards.querySelector(`[data-id="${id}"]`);
   if (!c) {
     c = document.createElement("div");
     c.className = "mcard";
     c.dataset.id = id;
-    c.innerHTML = `<h3 class="h"></h3><div class="phase">—</div><div class="metrics">—</div><pre>—</pre>`;
+    c.innerHTML = `<h3 class="h"></h3><div class="phase">-</div><div class="metrics">-</div><pre>-</pre>`;
     cards.appendChild(c);
   }
   const h3 = c.querySelector(".h");
   const ph = c.querySelector(".phase");
-  const m = c.querySelector(".metrics");
+  const metrics = c.querySelector(".metrics");
   const pr = c.querySelector("pre");
-  if (u?.label) h3.textContent = u.label;
-  if (u?.phase) {
-    ph.textContent = u.phase;
-    if (u.phase === "error") c.style.outline = "1px solid var(--err)";
-    if (u.phase === "done") c.style.outline = "1px solid var(--ok)";
+  if (update?.label) h3.textContent = update.label;
+  if (update?.phase) {
+    ph.textContent = update.phase;
+    if (update.phase === "error") c.style.outline = "1px solid var(--err)";
+    if (update.phase === "done") c.style.outline = "1px solid var(--ok)";
   }
-  if (u?.summary) m.textContent = fmtSummaryLine(u.summary) || m.textContent;
-  if (u?.log_tail) pr.textContent = (u.log_tail || "").split("\n").slice(-12).join("\n");
+  if (update?.summary) metrics.textContent = fmtSummaryLine(update.summary);
+  if (update?.log_tail) pr.textContent = String(update.log_tail || "").split("\n").slice(-12).join("\n");
   return c;
 }
 
-function handleSseData(log, d, cards) {
-  if (d.type === "log" && d.payload) {
-    const p = d.payload;
-    if (p.message) appendLog(log, p.message);
-    if (p.log_tail) appendLog(log, "— server log (tail) —\n" + p.log_tail);
+function handleSseData(log, data, cards) {
+  if (data.type === "log" && data.payload) {
+    if (data.payload.message) appendLog(log, data.payload.message);
+    if (data.payload.log_tail) appendLog(log, "-- server log tail --\n" + data.payload.log_tail);
   }
-  if (d.type === "config" && d.payload) {
-    const p = d.payload;
-    if (p.id) {
-      setCard(cards, p.id, p);
-      if (p.phase) appendLog(log, `config[${p.id}] phase=${p.phase}`);
-    }
+  if (data.type === "config" && data.payload?.id) {
+    setCard(cards, data.payload.id, data.payload);
+    if (data.payload.phase) appendLog(log, `config[${data.payload.id}] phase=${data.payload.phase}`);
   }
-  if (d.type === "error" && d.payload) {
-    const ep = d.payload;
-    if (ep && (ep.message != null || ep.error != null)) {
-      appendLog(log, "ERR: " + String(ep.message != null ? ep.message : ep.error));
+  if (data.type === "error" && data.payload) {
+    appendLog(log, "ERR: " + String(data.payload.message != null ? data.payload.message : data.payload.error));
+  }
+  if (data.type === "job" && data.payload) {
+    if (data.payload.id && $("jobid")) $("jobid").textContent = data.payload.id;
+    if (data.payload.state === "finished") {
+      appendLog(log, "==== run finished");
+      renderResultTable(data.payload.results, data.payload.errors, data.payload.config_ids);
     } else {
-      appendLog(log, "ERR: " + String(d.payload));
-    }
-  }
-  if (d.type === "job" && d.payload) {
-    const p = d.payload;
-    if (p.id) {
-      if ($("jobid")) $("jobid").textContent = p.id;
-    }
-    if (p.state === "finished") {
-      appendLog(log, "==== run finished: " + p.state);
-      renderResultTable(p.results, p.errors, p.config_ids);
-      appendLog(log, "Results table updated below.");
-    } else {
-      appendLog(log, "==== " + p.state);
+      appendLog(log, "==== " + data.payload.state);
     }
   }
 }
@@ -316,75 +286,82 @@ async function go() {
   const cards = $("cards");
   if (log) {
     log.textContent = "";
-    appendLog(log, "Submitting…");
+    appendLog(log, "Submitting...");
   }
   if (cards) cards.replaceChildren();
-  const rpanel = $("resultsPanel");
-  const rhost = $("resultTableHost");
-  if (rhost) rhost.replaceChildren();
-  if (rpanel) rpanel.hidden = true;
+  const panel = $("resultsPanel");
+  const host = $("resultTableHost");
+  if (host) host.replaceChildren();
+  if (panel) panel.hidden = true;
+
   const m = mode();
   const form = new FormData();
   form.set("mode", m);
   form.set("concurrency", String(+$("concurrency")?.value || 4));
   const lim = +$("limit")?.value;
   if (m === "text") {
-    const t = $("article")?.value || "";
-    form.set("text", t);
+    form.set("text", $("article")?.value || "");
   }
   if (lim) form.set("limit", String(lim));
   const ids = selectedConfigIds();
   if (ids.length) form.set("configs", JSON.stringify(ids));
-  const f = $("file");
-  if (f && f.files && f.files[0]) form.set("file", f.files[0], f.files[0].name);
+
+  const file = $("file");
+  const selectedFiles = file?.files ? Array.from(file.files) : [];
+  if (m === "jsonl") {
+    if (!selectedFiles.length) throw new Error("jsonl mode requires one .jsonl file");
+    form.append("files", selectedFiles[0], selectedFiles[0].name);
+  } else {
+    for (const f of selectedFiles) {
+      form.append("files", f, f.name);
+    }
+  }
 
   try {
-    if (m === "jsonl" && (!f || !f.files[0])) {
-      throw new Error("jsonl: choose a .jsonl file first");
-    }
     const st = await fetch("/api/jobs", { method: "POST", body: form });
     if (!st.ok) {
       const t = await st.text();
       throw new Error(t || String(st.status));
     }
-    const j = await st.json();
-    if ($("jobid")) $("jobid").textContent = j.id;
-    if (log) appendLog(log, "job id=" + j.id + " — listening on SSE…");
+    const job = await st.json();
+    if ($("jobid")) $("jobid").textContent = job.id;
+    if (log) appendLog(log, "job id=" + job.id + " - listening on SSE...");
 
-    return await new Promise((resolve, reject) => {
-      const es = new EventSource("/api/jobs/" + j.id + "/events");
+    await new Promise((resolve) => {
+      const es = new EventSource("/api/jobs/" + job.id + "/events");
       const done = () => {
         es.close();
         if (btn) btn.disabled = false;
+        refreshBackendStatus().catch(() => undefined);
         resolve();
       };
       es.onmessage = (e) => {
         try {
-          const d = JSON.parse(e.data);
-          handleSseData(log, d, cards);
-          if (d.type === "job" && d.payload && d.payload.state === "finished") {
-            if (log) appendLog(log, "(You may close this page; results were not written to the server.)");
-            done();
-          }
-        } catch (x) {
-          if (log) appendLog(log, (x && x.message) || String(x) + " raw=" + (e.data || ""));
+          const data = JSON.parse(e.data);
+          handleSseData(log, data, cards);
+          if (data.type === "job" && data.payload?.state === "finished") done();
+        } catch (err) {
+          appendLog(log, (err && err.message) || String(err));
         }
       };
       es.onerror = () => {
-        if (log) appendLog(log, "EventSource closed or error (re-open the page to start again)");
+        appendLog(log, "EventSource closed or errored.");
         done();
       };
     });
-  } catch (e) {
-    if (log) appendLog(log, (e && e.message) || String(e));
+  } catch (err) {
+    appendLog(log, (err && err.message) || String(err));
     if (btn) btn.disabled = false;
   }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  const goBtn = $("go");
-  if (goBtn) goBtn.addEventListener("click", () => go().catch((e) => (console.error(e), undefined)));
+  $("go")?.addEventListener("click", () => go().catch((err) => console.error(err)));
   modeRadios().forEach((r) => r.addEventListener("change", onMode));
   onMode();
-  loadConfigs().catch((e) => (console.error(e), undefined));
+  loadConfigs().catch((err) => console.error(err));
+  refreshBackendStatus().catch((err) => console.error(err));
+  backendStatusTimer = window.setInterval(() => {
+    refreshBackendStatus().catch(() => undefined);
+  }, 3000);
 });

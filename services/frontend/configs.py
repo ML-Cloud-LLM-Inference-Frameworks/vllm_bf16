@@ -16,6 +16,7 @@ FRONTEND_CONFIG_ORDER: tuple[str, ...] = (
 )
 
 _DEFAULT_AWQ_MODEL = "solidrust/Mistral-7B-Instruct-v0.3-AWQ"
+_DEFAULT_AWQ_SERVED_NAME = "mistral-7b-int4"
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,7 +63,7 @@ def get_frontend_configs() -> dict[str, FrontendConfig]:
         reason = spec.unavailable_reason
         if key == "vllm_awq_int4":
             awq = _awq_model()
-            openai_id = awq
+            openai_id = os.environ.get("VLLM_AWQ_SERVED_NAME", _DEFAULT_AWQ_SERVED_NAME).strip() or _DEFAULT_AWQ_SERVED_NAME
             p = _vllm_config_path("vllm_awq_int4.yaml")
             command = ("vllm", "serve", awq, "--config", p)
             available = True

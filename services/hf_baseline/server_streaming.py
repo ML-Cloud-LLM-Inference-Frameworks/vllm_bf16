@@ -74,6 +74,7 @@ class ChatResponse(BaseModel):
     model: str
     choices: list[Choice]
     latency_s: float
+    ttft_s: float
 
 
 class ClassifyRequest(BaseModel):
@@ -85,6 +86,7 @@ class ClassifyResponse(BaseModel):
     prediction: Optional[str]
     raw_output: str
     latency_s: float
+    ttft_s: float
 
 
 def _user_text(msgs: list[Message]) -> str:
@@ -101,24 +103,34 @@ def _mistr_inst(user_block: str) -> str:
     return f"[INST] {user_block} [/INST]"
 
 
-def _sync_generate(prompt: str) -> tuple[str, float]:
+def _run_inference(prompt: str) -> tuple[str, float, float]:
     s = _mistr_inst(prompt)
-    inputs = _tok(s, return_tensors="pt").to("cuda")
+    ins = _tok(s, return_tensors="pt").to("cuda")
+    streamer = TextIteratorStreamer(_tok, skip_special_tokens=True)
+    gen_kw: dict[str, Any] = {
+        **{k: v for k, v in ins.items()},
+        "max_new_tokens": MAX_TOKENS,
+        "do_sample": False,
+        "temperature": None,
+        "top_p": None,
+        "pad_token_id": int(_tok.eos_token_id) if _tok.eos_token_id is not None else None,
+        "streamer": streamer,
+    }
     t0 = time.perf_counter()
-    with torch.inference_mode():
-        out = _llm.generate(
-            **inputs,
-            max_new_tokens=MAX_TOKENS,
-            do_sample=False,
-            temperature=None,
-            top_p=None,
-            pad_token_id=_tok.eos_token_id,
-        )
+    thr = threading.Thread(target=_llm.generate, kwargs=gen_kw, daemon=True)
+    thr.start()
+    ttft: float | None = None
+    chunks: list[str] = []
+    for new in streamer:
+        if not new:
+            continue
+        if ttft is None:
+            ttft = time.perf_counter() - t0
+        chunks.append(new)
+    thr.join()
     lat = time.perf_counter() - t0
-    raw = _tok.decode(
-        out[0, inputs["input_ids"].shape[1] :], skip_special_tokens=True
-    ).strip()
-    return raw, lat
+    raw = "".join(chunks).strip()
+    return raw, lat, ttft if ttft is not None else lat
 
 
 def _iter_streaming(body: str, model_name: str, cap: int):
@@ -188,13 +200,14 @@ def health():
 def chat_completions(req: ChatRequest):
     u = _user_text(req.messages)
     if not req.stream:
-        raw, lat = _sync_generate(u)
+        raw, lat, ttft = _run_inference(u)
         return ChatResponse(
             id="chatcmpl-hf",
             object="chat.completion",
             model=req.model,
             choices=[Choice(index=0, message=Message(role="assistant", content=raw), finish_reason="stop")],
             latency_s=round(float(lat), 4),
+            ttft_s=round(float(ttft), 4),
         )
     return StreamingResponse(
         _iter_streaming(u, req.model, int(req.max_tokens or MAX_TOKENS)),
@@ -205,10 +218,11 @@ def chat_completions(req: ChatRequest):
 @app.post("/classify", response_model=ClassifyResponse)
 def classify(req: ClassifyRequest):
     p = PROMPT_TEMPLATE.format(article=req.text)
-    raw, lat = _sync_generate(p)
+    raw, lat, ttft = _run_inference(p)
     return ClassifyResponse(
         config_name=CONFIG_NAME,
         prediction=parse_label(raw),
         raw_output=raw,
         latency_s=round(float(lat), 4),
+        ttft_s=round(float(ttft), 4),
     )

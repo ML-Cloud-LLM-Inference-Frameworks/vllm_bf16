@@ -10,39 +10,52 @@
     <div class="wrap">
       <header>
         <h1>4-config model comparison</h1>
-        <p class="sub">Sequential runs on port 8000: HF · vLLM BF16 · vLLM BF16+APC · vLLM AWQ INT4</p>
+        <p class="sub">Sequential backend switching on port 8000: HF, vLLM BF16, vLLM BF16 + APC, and vLLM AWQ INT4.</p>
       </header>
 
       <section class="card panel">
         <h2>Input</h2>
         <div class="mode-row">
-          <label><input type="radio" name="mode" value="text" checked /> One article (text)</label>
-          <label
-            ><input type="radio" name="mode" value="jsonl" /> JSONL (same schema as
-            <code>data/*.jsonl</code>)</label
-          >
+          <label><input type="radio" name="mode" value="text" checked /> Text</label>
+          <label><input type="radio" name="mode" value="jsonl" /> JSONL batch</label>
         </div>
-        <textarea id="article" rows="8" placeholder="Paste a news article here…"></textarea>
+        <textarea id="article" rows="8" placeholder="Paste one article here, or upload one or more .txt files below."></textarea>
         <div class="row">
-          <input type="file" id="file" />
+          <input type="file" id="file" multiple accept=".txt,text/plain" />
+          <p class="file-hint" id="fileHint">Text mode accepts one or more .txt files. Each file is treated as one full input.</p>
         </div>
-        <div class="row" id="jsonlOpts" hidden>
+        <div class="row">
           <label>Concurrency <input type="number" id="concurrency" value="4" min="1" max="64" /></label>
+        </div>
+        <div class="row" id="jsonlLimitRow" hidden>
           <label>Limit first N lines <input type="number" id="limit" value="0" min="0" placeholder="0 = all" /></label>
         </div>
-        <h3>Backends to run (leave all checked)</h3>
+        <h3>Backends to run</h3>
         <div id="checkboxes" class="checks"></div>
         <button type="button" id="go" class="primary">Start comparison</button>
-        <h2 class="log-h">Live log (watch here when it is slow)</h2>
-        <p class="log-hint">Nothing is saved to disk. If you close the tab or lose the connection, results are gone (last SSE frame has a summary).</p>
+        <h2 class="log-h">Live log</h2>
+        <p class="log-hint">The UI keeps the currently selected backend alive after a run so the next submit can reuse it.</p>
         <pre id="log" class="log" aria-live="polite"></pre>
+      </section>
+
+      <section class="card status-card">
+        <h2>Backend VM Status</h2>
+        <div class="status-row">
+          <span class="status-label">State</span>
+          <span id="backendStatus" class="status-badge" data-state="idle">idle</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Active config</span>
+          <span id="backendActive">None</span>
+        </div>
+        <p id="backendDetails" class="sub">No backend service is running.</p>
       </section>
 
       <section class="grid" id="cards"></section>
 
       <section class="card" id="resultsPanel" hidden>
         <h2>Results</h2>
-        <p class="sub results-hint">End-to-end numbers for the selected run (same as live cards above, in table form).</p>
+        <p class="sub results-hint">Per-backend results for the current run.</p>
         <div class="table-scroll" id="resultTableHost"></div>
       </section>
 

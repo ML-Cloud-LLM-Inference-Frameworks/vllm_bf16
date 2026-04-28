@@ -45,7 +45,7 @@ CONFIG_NAME="${BENCH_CONFIG_NAME:-$EXPERIMENT_NAME}"
 
 case "${1:-}" in
   serve)
-    exec uvicorn services.hf_baseline.server:app \
+    exec uvicorn services.hf_baseline.server_streaming:app \
       --host "$HOST" \
       --port "$PORT"
     ;;

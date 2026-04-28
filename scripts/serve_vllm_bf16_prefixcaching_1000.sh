@@ -36,6 +36,10 @@ HOST="${VLLM_HOST:-0.0.0.0}"
 PORT="${VLLM_PORT:-8000}"
 # Hub id (used in benchmark --model-id; also --served-model-name when serving from a local directory)
 VLLM_MODEL_HUB="${VLLM_MODEL_HUB:-mistralai/Mistral-7B-Instruct-v0.3}"
+GPU_MEM="${GPU_UTIL:-0.90}"
+MAX_MODEL_LEN="${MAX_MODEL_LEN:-2048}"
+MAX_NUM_SEQS="${MAX_NUM_SEQS:-16}"
+MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS:-4096}"
 # Optional local weights. If unset, use default path when it exists; else serve from hub.
 VLLM_MODEL_PATH="${VLLM_MODEL_PATH:-}"
 if [ -z "$VLLM_MODEL_PATH" ] && [ -d /home/sgcjin/mistral_models/7B-Instruct-v0.3 ]; then
@@ -66,12 +70,24 @@ case "${1:-}" in
         --host "$HOST" \
         --port "$PORT" \
         --dtype bfloat16 \
+        --scheduling-policy fcfs \
+        --max-num-seqs "$MAX_NUM_SEQS" \
+        --max-num-batched-tokens "$MAX_NUM_BATCHED_TOKENS" \
+        --enable-chunked-prefill \
+        --gpu-memory-utilization "$GPU_MEM" \
+        --max-model-len "$MAX_MODEL_LEN" \
         --enable-prefix-caching
     else
       exec vllm serve "$VLLM_MODEL_HUB" \
         --host "$HOST" \
         --port "$PORT" \
         --dtype bfloat16 \
+        --scheduling-policy fcfs \
+        --max-num-seqs "$MAX_NUM_SEQS" \
+        --max-num-batched-tokens "$MAX_NUM_BATCHED_TOKENS" \
+        --enable-chunked-prefill \
+        --gpu-memory-utilization "$GPU_MEM" \
+        --max-model-len "$MAX_MODEL_LEN" \
         --enable-prefix-caching
     fi
     ;;

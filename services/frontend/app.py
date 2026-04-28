@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +13,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from services.frontend.orchestrator import Event, Job, create_job, run_job
+from services.frontend.configs import get_frontend_configs
+from services.frontend.orchestrator import (
+    Event,
+    Job,
+    backend_status_snapshot,
+    create_job,
+    run_job,
+    shutdown_backend_manager,
+)
 
 app = FastAPI(title="4-config LLM comparison")
 app.add_middleware(
@@ -80,6 +89,27 @@ def _parse_configs(raw: str) -> list[str] | None:
     return [str(x) for x in d]
 
 
+def _save_upload(upload: UploadFile, upload_dir: Path) -> Path:
+    safe_name = upload.filename.replace("/", "_").replace("\\", "_")[:120]
+    dest = upload_dir / f"u_{uuid.uuid4().hex}_{safe_name}"
+    with dest.open("wb") as outw:
+        shutil.copyfileobj(upload.file, outw)
+    return dest
+
+
+@app.get("/api/backend-status")
+def api_backend_status() -> dict[str, Any]:
+    status = backend_status_snapshot()
+    configs = get_frontend_configs()
+    active_id = status.get("active_config_name")
+    desired_id = status.get("desired_config_name")
+    if active_id in configs:
+        status["active_label"] = configs[active_id].label
+    if desired_id in configs:
+        status["desired_label"] = configs[desired_id].label
+    return status
+
+
 @app.post("/api/jobs")
 async def api_create_job(
     mode: str = Form("text"),
@@ -87,7 +117,7 @@ async def api_create_job(
     configs: str = Form("[]"),
     concurrency: int = Form(4),
     limit: int = Form(0),
-    file: UploadFile | None = File(None),
+    files: list[UploadFile] = File([]),
 ) -> Any:
     try:
         cfg = _parse_configs(configs)
@@ -103,27 +133,35 @@ async def api_create_job(
     udir = Path(__file__).resolve().parent / "_uploads"
     udir.mkdir(parents=True, exist_ok=True)
     text_body = (text or "").strip() or None
-    upload: Path | None = None
-    if file and file.filename:
-        dest = udir / f"u_{file.filename.replace('/', '_')[:120]}"
-        with dest.open("wb") as outw:
-            shutil.copyfileobj(file.file, outw)
-        upload = dest
+    uploaded_files: list[tuple[str, Path]] = []
+    for upload in files:
+        if upload and upload.filename:
+            display_name = upload.filename.replace("/", "_").replace("\\", "_")[:120]
+            uploaded_files.append((display_name, _save_upload(upload, udir)))
+    text_inputs: list[dict[str, str]] = []
+    jsonl_path: Path | None = None
+    if mode == "text":
+        if text_body:
+            text_inputs.append({"name": "pasted_text.txt", "text": text_body})
+        for display_name, path in uploaded_files:
+            if path.suffix.lower() != ".txt":
+                raise HTTPException(400, "text mode only accepts .txt uploads; use JSONL mode for .jsonl files")
+            text_inputs.append({"name": display_name, "text": path.read_text(encoding="utf-8")})
+        if not text_inputs:
+            raise HTTPException(400, "text mode: provide pasted text or upload one or more .txt files")
+    else:
+        if len(uploaded_files) != 1 or uploaded_files[0][1].suffix.lower() != ".jsonl":
+            raise HTTPException(400, "jsonl mode: upload exactly one .jsonl file")
+        jsonl_path = uploaded_files[0][1]
     j = create_job(
         "jsonl" if mode == "jsonl" else "text",
         text=None if mode == "jsonl" else text_body,
-        jsonl_path=upload if mode == "jsonl" else None,
+        text_inputs=text_inputs,
+        jsonl_path=jsonl_path,
         config_ids=cfg,
         concurrency=concurrency,
         limit=lim,
     )
-    if mode == "text" and (not (j.text and str(j.text).strip())) and upload and upload.is_file():
-        if not str(upload).lower().endswith((".jsonl", ".json")):
-            j.text = upload.read_text(encoding="utf-8")
-    if mode == "text" and not (j.text and str(j.text).strip()):
-        raise HTTPException(400, "text mode: provide the `text` form field or upload a plain-text file (not .jsonl)")
-    if mode == "jsonl" and (not j.jsonl_path or not Path(j.jsonl_path).is_file()):
-        raise HTTPException(400, "jsonl mode: upload a .jsonl file (e.g. data/agnews_bench_1000.jsonl)")
     _PENDING[j.id] = j
     return {
         "id": j.id,
@@ -168,3 +206,8 @@ def api_get_job(job_id: str) -> Any:
         {"message": "Jobs are not stored; connect to /api/jobs/{id}/events to stream results/"},
         status_code=404,
     )
+
+
+@app.on_event("shutdown")
+async def shutdown_event() -> None:
+    await shutdown_backend_manager()

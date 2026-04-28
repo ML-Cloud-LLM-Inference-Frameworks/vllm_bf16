@@ -29,7 +29,10 @@ HOST="${VLLM_HOST:-0.0.0.0}"
 PORT="${VLLM_PORT:-8000}"
 MODEL="solidrust/Mistral-7B-Instruct-v0.3-AWQ"
 SERVED_NAME="mistral-7b-int4"
-GPU_MEM="${GPU_UTIL:-0.80}"
+GPU_MEM="${GPU_UTIL:-0.90}"
+MAX_MODEL_LEN="${MAX_MODEL_LEN:-2048}"
+MAX_NUM_SEQS="${MAX_NUM_SEQS:-16}"
+MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS:-4096}"
 BASE_URL="http://127.0.0.1:${PORT}/v1"
 
 # Experiment: all run outputs go under outputs/<name>/
@@ -60,7 +63,11 @@ case "${1:-}" in
       --port "$PORT" \
       --quantization awq_marlin \
       --dtype float16 \
-      --max-model-len 2048 \
+      --scheduling-policy fcfs \
+      --max-num-seqs "$MAX_NUM_SEQS" \
+      --max-num-batched-tokens "$MAX_NUM_BATCHED_TOKENS" \
+      --enable-chunked-prefill \
+      --max-model-len "$MAX_MODEL_LEN" \
       --gpu-memory-utilization "$GPU_MEM"
     ;;
   bench)

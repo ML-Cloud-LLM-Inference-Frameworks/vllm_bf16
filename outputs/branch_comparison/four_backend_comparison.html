@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Four-backend Benchmark Comparison</title>
+  <style>
+    :root {
+      --bg: #f7f3ea;
+      --surface: #fffdf8;
+      --ink: #1f1f1f;
+      --muted: #6a665f;
+      --grid: #d9d1c4;
+      --border: #cfc5b5;
+      --accent: #a04b00;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top right, rgba(160, 75, 0, 0.08), transparent 24rem),
+        linear-gradient(180deg, #fbf8f1, var(--bg));
+    }
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 24px 56px;
+    }
+    h1, h2, h3 { margin: 0 0 12px; }
+    p { line-height: 1.55; }
+    .lede {
+      max-width: 78ch;
+      color: var(--muted);
+      margin-bottom: 22px;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-bottom: 24px;
+    }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px 18px;
+      box-shadow: 0 8px 30px rgba(31, 31, 31, 0.06);
+    }
+    .card-title {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin-bottom: 8px;
+    }
+    .card-value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .card-note {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .chart-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 30px rgba(31, 31, 31, 0.05);
+    }
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 8px;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .legend-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+    .chart {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .axis, .grid {
+      stroke: var(--grid);
+      stroke-width: 1;
+    }
+    .xgrid {
+      opacity: 0.55;
+    }
+    .axis-label {
+      fill: var(--muted);
+      font-size: 12px;
+    }
+    .chart-title {
+      fill: var(--ink);
+      font-size: 15px;
+      font-weight: 600;
+    }
+    section {
+      margin-bottom: 28px;
+    }
+    .table-wrap {
+      overflow-x: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 8px 30px rgba(31, 31, 31, 0.05);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 900px;
+    }
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #ece4d8;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+    th {
+      background: #f3ede1;
+      position: sticky;
+      top: 0;
+    }
+    .note {
+      color: var(--muted);
+      font-size: 0.94rem;
+      max-width: 80ch;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Four-backend benchmark comparison</h1>
+    <p class="lede">
+      This report compares the three vLLM result folders from <code>origin/main</code> with the
+      HF baseline result folder from <code>origin/haotian/hf-baseline</code>. It was generated
+      directly from branch artifacts with <code>git show</code>, so no branch checkout or merge was required.
+    </p>
+    <div class="meta">
+      Generated at 2026-04-28 03:13:43 UTC.
+      Concurrency sweep: c1, c2, c4, c8, c16.
+    </div>
+    <div class="card-grid">
+    <div class="card">
+      <div class="card-title">Best throughput</div>
+      <div class="card-value">vLLM int4 c16</div>
+      <div class="card-note">112.47 req/s</div>
+    </div>
+    
+    <div class="card">
+      <div class="card-title">Lowest p95 latency</div>
+      <div class="card-value">vLLM int4 c1</div>
+      <div class="card-note">0.166 s</div>
+    </div>
+    
+    <div class="card">
+      <div class="card-title">Best overall accuracy</div>
+      <div class="card-value">HF baseline c1</div>
+      <div class="card-note">77.2%</div>
+    </div>
+    
+    <div class="card">
+      <div class="card-title">Lowest TTFT</div>
+      <div class="card-value">vLLM int4 c2</div>
+      <div class="card-note">0.042 s</div>
+    </div>
+    </div>
+    <section>
+      <h2>Common Metrics</h2>
+      <p class="note">
+        TTFT is compared across all four backends, but it comes from different instrumentation:
+        HF baseline uses per-response timing, while vLLM uses the Prometheus time-to-first-token mean when the benchmark JSON omits TTFT.
+      </p>
+    </section>
+    
+    <section class="chart-section">
+      <div class="chart-header">
+        <h3>Throughput vs concurrency</h3>
+        <div class="legend"><div class="legend-item"><span class="legend-swatch" style="background:#1f4b99"></span>HF baseline</div><div class="legend-item"><span class="legend-swatch" style="background:#d55c00"></span>vLLM bf16</div><div class="legend-item"><span class="legend-swatch" style="background:#16803c"></span>vLLM + APC</div><div class="legend-item"><span class="legend-swatch" style="background:#7a2ea8"></span>vLLM int4</div></div>
+      </div>
+      <svg viewBox="0 0 860 320" class="chart" role="img" aria-label="Throughput vs concurrency">
+        <text x="430.00" y="18" text-anchor="middle" class="chart-title">Throughput vs concurrency</text>
+        <text x="18" y="160.00" transform="rotate(-90 18 160.00)" class="axis-label">req/s</text>
+        <line x1="72" y1="264.00" x2="836" y2="264.00" class="grid" /><text x="62" y="268.00" text-anchor="end" class="axis-label">0.0</text><line x1="72" y1="204.50" x2="836" y2="204.50" class="grid" /><text x="62" y="208.50" text-anchor="end" class="axis-label">30.4</text><line x1="72" y1="145.00" x2="836" y2="145.00" class="grid" /><text x="62" y="149.00" text-anchor="end" class="axis-label">60.7</text><line x1="72" y1="85.50" x2="836" y2="85.50" class="grid" /><text x="62" y="89.50" text-anchor="end" class="axis-label">91.1</text><line x1="72" y1="26.00" x2="836" y2="26.00" class="grid" /><text x="62" y="30.00" text-anchor="end" class="axis-label">121.5</text>
+        <line x1="72.00" y1="26" x2="72.00" y2="264" class="grid xgrid" /><text x="72.00" y="286" text-anchor="middle" class="axis-label">c1</text><line x1="263.00" y1="26" x2="263.00" y2="264" class="grid xgrid" /><text x="263.00" y="286" text-anchor="middle" class="axis-label">c2</text><line x1="454.00" y1="26" x2="454.00" y2="264" class="grid xgrid" /><text x="454.00" y="286" text-anchor="middle" class="axis-label">c4</text><line x1="645.00" y1="26" x2="645.00" y2="264" class="grid xgrid" /><text x="645.00" y="286" text-anchor="middle" class="axis-label">c8</text><line x1="836.00" y1="26" x2="836.00" y2="264" class="grid xgrid" /><text x="836.00" y="286" text-anchor="middle" class="axis-label">c16</text>
+        <line x1="72" y1="264" x2="836" y2="264" class="axis" />
+        <line x1="72" y1="26" x2="72" y2="264" class="axis" />
+        <path d="M 72.00 255.34 L 263.00 255.10 L 454.00 255.52 L 645.00 258.11 L 836.00 257.72" fill="none" stroke="#1f4b99" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 256.22 L 263.00 251.54 L 454.00 241.78 L 645.00 227.05 L 836.00 213.08" fill="none" stroke="#d55c00" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 256.22 L 263.00 251.55 L 454.00 241.80 L 645.00 227.05 L 836.00 212.88" fill="none" stroke="#16803c" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 242.74 L 263.00 221.88 L 454.00 185.61 L 645.00 122.94 L 836.00 43.63" fill="none" stroke="#7a2ea8" stroke-width="3" stroke-linecap="round" />
+        <circle cx="72.00" cy="255.34" r="4" fill="#1f4b99"><title>HF baseline c1: 4.4</title></circle><circle cx="263.00" cy="255.10" r="4" fill="#1f4b99"><title>HF baseline c2: 4.5</title></circle><circle cx="454.00" cy="255.52" r="4" fill="#1f4b99"><title>HF baseline c4: 4.3</title></circle><circle cx="645.00" cy="258.11" r="4" fill="#1f4b99"><title>HF baseline c8: 3.0</title></circle><circle cx="836.00" cy="257.72" r="4" fill="#1f4b99"><title>HF baseline c16: 3.2</title></circle><circle cx="72.00" cy="256.22" r="4" fill="#d55c00"><title>vLLM bf16 c1: 4.0</title></circle><circle cx="263.00" cy="251.54" r="4" fill="#d55c00"><title>vLLM bf16 c2: 6.4</title></circle><circle cx="454.00" cy="241.78" r="4" fill="#d55c00"><title>vLLM bf16 c4: 11.3</title></circle><circle cx="645.00" cy="227.05" r="4" fill="#d55c00"><title>vLLM bf16 c8: 18.9</title></circle><circle cx="836.00" cy="213.08" r="4" fill="#d55c00"><title>vLLM bf16 c16: 26.0</title></circle><circle cx="72.00" cy="256.22" r="4" fill="#16803c"><title>vLLM + APC c1: 4.0</title></circle><circle cx="263.00" cy="251.55" r="4" fill="#16803c"><title>vLLM + APC c2: 6.4</title></circle><circle cx="454.00" cy="241.80" r="4" fill="#16803c"><title>vLLM + APC c4: 11.3</title></circle><circle cx="645.00" cy="227.05" r="4" fill="#16803c"><title>vLLM + APC c8: 18.9</title></circle><circle cx="836.00" cy="212.88" r="4" fill="#16803c"><title>vLLM + APC c16: 26.1</title></circle><circle cx="72.00" cy="242.74" r="4" fill="#7a2ea8"><title>vLLM int4 c1: 10.9</title></circle><circle cx="263.00" cy="221.88" r="4" fill="#7a2ea8"><title>vLLM int4 c2: 21.5</title></circle><circle cx="454.00" cy="185.61" r="4" fill="#7a2ea8"><title>vLLM int4 c4: 40.0</title></circle><circle cx="645.00" cy="122.94" r="4" fill="#7a2ea8"><title>vLLM int4 c8: 72.0</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#7a2ea8"><title>vLLM int4 c16: 112.5</title></circle>
+      </svg>
+    </section>
+    
+    <section class="chart-section">
+      <div class="chart-header">
+        <h3>Average latency vs concurrency</h3>
+        <div class="legend"><div class="legend-item"><span class="legend-swatch" style="background:#1f4b99"></span>HF baseline</div><div class="legend-item"><span class="legend-swatch" style="background:#d55c00"></span>vLLM bf16</div><div class="legend-item"><span class="legend-swatch" style="background:#16803c"></span>vLLM + APC</div><div class="legend-item"><span class="legend-swatch" style="background:#7a2ea8"></span>vLLM int4</div></div>
+      </div>
+      <svg viewBox="0 0 860 320" class="chart" role="img" aria-label="Average latency vs concurrency">
+        <text x="430.00" y="18" text-anchor="middle" class="chart-title">Average latency vs concurrency</text>
+        <text x="18" y="160.00" transform="rotate(-90 18 160.00)" class="axis-label">seconds</text>
+        <line x1="72" y1="264.00" x2="836" y2="264.00" class="grid" /><text x="62" y="268.00" text-anchor="end" class="axis-label">0.00</text><line x1="72" y1="204.50" x2="836" y2="204.50" class="grid" /><text x="62" y="208.50" text-anchor="end" class="axis-label">1.34</text><line x1="72" y1="145.00" x2="836" y2="145.00" class="grid" /><text x="62" y="149.00" text-anchor="end" class="axis-label">2.69</text><line x1="72" y1="85.50" x2="836" y2="85.50" class="grid" /><text x="62" y="89.50" text-anchor="end" class="axis-label">4.03</text><line x1="72" y1="26.00" x2="836" y2="26.00" class="grid" /><text x="62" y="30.00" text-anchor="end" class="axis-label">5.37</text>
+        <line x1="72.00" y1="26" x2="72.00" y2="264" class="grid xgrid" /><text x="72.00" y="286" text-anchor="middle" class="axis-label">c1</text><line x1="263.00" y1="26" x2="263.00" y2="264" class="grid xgrid" /><text x="263.00" y="286" text-anchor="middle" class="axis-label">c2</text><line x1="454.00" y1="26" x2="454.00" y2="264" class="grid xgrid" /><text x="454.00" y="286" text-anchor="middle" class="axis-label">c4</text><line x1="645.00" y1="26" x2="645.00" y2="264" class="grid xgrid" /><text x="645.00" y="286" text-anchor="middle" class="axis-label">c8</text><line x1="836.00" y1="26" x2="836.00" y2="264" class="grid xgrid" /><text x="836.00" y="286" text-anchor="middle" class="axis-label">c16</text>
+        <line x1="72" y1="264" x2="836" y2="264" class="axis" />
+        <line x1="72" y1="26" x2="72" y2="264" class="axis" />
+        <path d="M 72.00 253.98 L 263.00 244.51 L 454.00 223.11 L 645.00 146.30 L 836.00 43.63" fill="none" stroke="#1f4b99" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 252.84 L 263.00 250.09 L 454.00 248.42 L 645.00 245.30 L 836.00 236.93" fill="none" stroke="#d55c00" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 252.84 L 263.00 250.09 L 454.00 248.41 L 645.00 245.30 L 836.00 237.03" fill="none" stroke="#16803c" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 259.92 L 263.00 259.90 L 454.00 259.59 L 645.00 259.13 L 836.00 257.83" fill="none" stroke="#7a2ea8" stroke-width="3" stroke-linecap="round" />
+        <circle cx="72.00" cy="253.98" r="4" fill="#1f4b99"><title>HF baseline c1: 0.23</title></circle><circle cx="263.00" cy="244.51" r="4" fill="#1f4b99"><title>HF baseline c2: 0.44</title></circle><circle cx="454.00" cy="223.11" r="4" fill="#1f4b99"><title>HF baseline c4: 0.92</title></circle><circle cx="645.00" cy="146.30" r="4" fill="#1f4b99"><title>HF baseline c8: 2.66</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c16: 4.97</title></circle><circle cx="72.00" cy="252.84" r="4" fill="#d55c00"><title>vLLM bf16 c1: 0.25</title></circle><circle cx="263.00" cy="250.09" r="4" fill="#d55c00"><title>vLLM bf16 c2: 0.31</title></circle><circle cx="454.00" cy="248.42" r="4" fill="#d55c00"><title>vLLM bf16 c4: 0.35</title></circle><circle cx="645.00" cy="245.30" r="4" fill="#d55c00"><title>vLLM bf16 c8: 0.42</title></circle><circle cx="836.00" cy="236.93" r="4" fill="#d55c00"><title>vLLM bf16 c16: 0.61</title></circle><circle cx="72.00" cy="252.84" r="4" fill="#16803c"><title>vLLM + APC c1: 0.25</title></circle><circle cx="263.00" cy="250.09" r="4" fill="#16803c"><title>vLLM + APC c2: 0.31</title></circle><circle cx="454.00" cy="248.41" r="4" fill="#16803c"><title>vLLM + APC c4: 0.35</title></circle><circle cx="645.00" cy="245.30" r="4" fill="#16803c"><title>vLLM + APC c8: 0.42</title></circle><circle cx="836.00" cy="237.03" r="4" fill="#16803c"><title>vLLM + APC c16: 0.61</title></circle><circle cx="72.00" cy="259.92" r="4" fill="#7a2ea8"><title>vLLM int4 c1: 0.09</title></circle><circle cx="263.00" cy="259.90" r="4" fill="#7a2ea8"><title>vLLM int4 c2: 0.09</title></circle><circle cx="454.00" cy="259.59" r="4" fill="#7a2ea8"><title>vLLM int4 c4: 0.10</title></circle><circle cx="645.00" cy="259.13" r="4" fill="#7a2ea8"><title>vLLM int4 c8: 0.11</title></circle><circle cx="836.00" cy="257.83" r="4" fill="#7a2ea8"><title>vLLM int4 c16: 0.14</title></circle>
+      </svg>
+    </section>
+    
+    <section class="chart-section">
+      <div class="chart-header">
+        <h3>p50 latency vs concurrency</h3>
+        <div class="legend"><div class="legend-item"><span class="legend-swatch" style="background:#1f4b99"></span>HF baseline</div><div class="legend-item"><span class="legend-swatch" style="background:#d55c00"></span>vLLM bf16</div><div class="legend-item"><span class="legend-swatch" style="background:#16803c"></span>vLLM + APC</div><div class="legend-item"><span class="legend-swatch" style="background:#7a2ea8"></span>vLLM int4</div></div>
+      </div>
+      <svg viewBox="0 0 860 320" class="chart" role="img" aria-label="p50 latency vs concurrency">
+        <text x="430.00" y="18" text-anchor="middle" class="chart-title">p50 latency vs concurrency</text>
+        <text x="18" y="160.00" transform="rotate(-90 18 160.00)" class="axis-label">seconds</text>
+        <line x1="72" y1="264.00" x2="836" y2="264.00" class="grid" /><text x="62" y="268.00" text-anchor="end" class="axis-label">0.00</text><line x1="72" y1="204.50" x2="836" y2="204.50" class="grid" /><text x="62" y="208.50" text-anchor="end" class="axis-label">0.86</text><line x1="72" y1="145.00" x2="836" y2="145.00" class="grid" /><text x="62" y="149.00" text-anchor="end" class="axis-label">1.73</text><line x1="72" y1="85.50" x2="836" y2="85.50" class="grid" /><text x="62" y="89.50" text-anchor="end" class="axis-label">2.59</text><line x1="72" y1="26.00" x2="836" y2="26.00" class="grid" /><text x="62" y="30.00" text-anchor="end" class="axis-label">3.45</text>
+        <line x1="72.00" y1="26" x2="72.00" y2="264" class="grid xgrid" /><text x="72.00" y="286" text-anchor="middle" class="axis-label">c1</text><line x1="263.00" y1="26" x2="263.00" y2="264" class="grid xgrid" /><text x="263.00" y="286" text-anchor="middle" class="axis-label">c2</text><line x1="454.00" y1="26" x2="454.00" y2="264" class="grid xgrid" /><text x="454.00" y="286" text-anchor="middle" class="axis-label">c4</text><line x1="645.00" y1="26" x2="645.00" y2="264" class="grid xgrid" /><text x="645.00" y="286" text-anchor="middle" class="axis-label">c8</text><line x1="836.00" y1="26" x2="836.00" y2="264" class="grid xgrid" /><text x="836.00" y="286" text-anchor="middle" class="axis-label">c16</text>
+        <line x1="72" y1="264" x2="836" y2="264" class="axis" />
+        <line x1="72" y1="26" x2="72" y2="264" class="axis" />
+        <path d="M 72.00 253.34 L 263.00 243.62 L 454.00 222.43 L 645.00 146.63 L 836.00 43.63" fill="none" stroke="#1f4b99" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 251.51 L 263.00 246.97 L 454.00 244.68 L 645.00 239.44 L 836.00 227.27" fill="none" stroke="#d55c00" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 251.51 L 263.00 246.97 L 454.00 244.70 L 645.00 239.40 L 836.00 227.24" fill="none" stroke="#16803c" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 259.14 L 263.00 259.33 L 454.00 259.09 L 645.00 257.77 L 836.00 255.62" fill="none" stroke="#7a2ea8" stroke-width="3" stroke-linecap="round" />
+        <circle cx="72.00" cy="253.34" r="4" fill="#1f4b99"><title>HF baseline c1: 0.15</title></circle><circle cx="263.00" cy="243.62" r="4" fill="#1f4b99"><title>HF baseline c2: 0.30</title></circle><circle cx="454.00" cy="222.43" r="4" fill="#1f4b99"><title>HF baseline c4: 0.60</title></circle><circle cx="645.00" cy="146.63" r="4" fill="#1f4b99"><title>HF baseline c8: 1.70</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c16: 3.20</title></circle><circle cx="72.00" cy="251.51" r="4" fill="#d55c00"><title>vLLM bf16 c1: 0.18</title></circle><circle cx="263.00" cy="246.97" r="4" fill="#d55c00"><title>vLLM bf16 c2: 0.25</title></circle><circle cx="454.00" cy="244.68" r="4" fill="#d55c00"><title>vLLM bf16 c4: 0.28</title></circle><circle cx="645.00" cy="239.44" r="4" fill="#d55c00"><title>vLLM bf16 c8: 0.36</title></circle><circle cx="836.00" cy="227.27" r="4" fill="#d55c00"><title>vLLM bf16 c16: 0.53</title></circle><circle cx="72.00" cy="251.51" r="4" fill="#16803c"><title>vLLM + APC c1: 0.18</title></circle><circle cx="263.00" cy="246.97" r="4" fill="#16803c"><title>vLLM + APC c2: 0.25</title></circle><circle cx="454.00" cy="244.70" r="4" fill="#16803c"><title>vLLM + APC c4: 0.28</title></circle><circle cx="645.00" cy="239.40" r="4" fill="#16803c"><title>vLLM + APC c8: 0.36</title></circle><circle cx="836.00" cy="227.24" r="4" fill="#16803c"><title>vLLM + APC c16: 0.53</title></circle><circle cx="72.00" cy="259.14" r="4" fill="#7a2ea8"><title>vLLM int4 c1: 0.07</title></circle><circle cx="263.00" cy="259.33" r="4" fill="#7a2ea8"><title>vLLM int4 c2: 0.07</title></circle><circle cx="454.00" cy="259.09" r="4" fill="#7a2ea8"><title>vLLM int4 c4: 0.07</title></circle><circle cx="645.00" cy="257.77" r="4" fill="#7a2ea8"><title>vLLM int4 c8: 0.09</title></circle><circle cx="836.00" cy="255.62" r="4" fill="#7a2ea8"><title>vLLM int4 c16: 0.12</title></circle>
+      </svg>
+    </section>
+    
+    <section class="chart-section">
+      <div class="chart-header">
+        <h3>p95 latency vs concurrency</h3>
+        <div class="legend"><div class="legend-item"><span class="legend-swatch" style="background:#1f4b99"></span>HF baseline</div><div class="legend-item"><span class="legend-swatch" style="background:#d55c00"></span>vLLM bf16</div><div class="legend-item"><span class="legend-swatch" style="background:#16803c"></span>vLLM + APC</div><div class="legend-item"><span class="legend-swatch" style="background:#7a2ea8"></span>vLLM int4</div></div>
+      </div>
+      <svg viewBox="0 0 860 320" class="chart" role="img" aria-label="p95 latency vs concurrency">
+        <text x="430.00" y="18" text-anchor="middle" class="chart-title">p95 latency vs concurrency</text>
+        <text x="18" y="160.00" transform="rotate(-90 18 160.00)" class="axis-label">seconds</text>
+        <line x1="72" y1="264.00" x2="836" y2="264.00" class="grid" /><text x="62" y="268.00" text-anchor="end" class="axis-label">0.00</text><line x1="72" y1="204.50" x2="836" y2="204.50" class="grid" /><text x="62" y="208.50" text-anchor="end" class="axis-label">3.27</text><line x1="72" y1="145.00" x2="836" y2="145.00" class="grid" /><text x="62" y="149.00" text-anchor="end" class="axis-label">6.54</text><line x1="72" y1="85.50" x2="836" y2="85.50" class="grid" /><text x="62" y="89.50" text-anchor="end" class="axis-label">9.81</text><line x1="72" y1="26.00" x2="836" y2="26.00" class="grid" /><text x="62" y="30.00" text-anchor="end" class="axis-label">13.09</text>
+        <line x1="72.00" y1="26" x2="72.00" y2="264" class="grid xgrid" /><text x="72.00" y="286" text-anchor="middle" class="axis-label">c1</text><line x1="263.00" y1="26" x2="263.00" y2="264" class="grid xgrid" /><text x="263.00" y="286" text-anchor="middle" class="axis-label">c2</text><line x1="454.00" y1="26" x2="454.00" y2="264" class="grid xgrid" /><text x="454.00" y="286" text-anchor="middle" class="axis-label">c4</text><line x1="645.00" y1="26" x2="645.00" y2="264" class="grid xgrid" /><text x="645.00" y="286" text-anchor="middle" class="axis-label">c8</text><line x1="836.00" y1="26" x2="836.00" y2="264" class="grid xgrid" /><text x="836.00" y="286" text-anchor="middle" class="axis-label">c16</text>
+        <line x1="72" y1="264" x2="836" y2="264" class="axis" />
+        <line x1="72" y1="26" x2="72" y2="264" class="axis" />
+        <path d="M 72.00 254.63 L 263.00 245.43 L 454.00 223.83 L 645.00 147.41 L 836.00 43.63" fill="none" stroke="#1f4b99" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 254.66 L 263.00 253.32 L 454.00 252.59 L 645.00 250.55 L 836.00 245.10" fill="none" stroke="#d55c00" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 254.66 L 263.00 253.31 L 454.00 252.59 L 645.00 250.55 L 836.00 245.12" fill="none" stroke="#16803c" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 260.99 L 263.00 260.97 L 454.00 260.86 L 645.00 260.61 L 836.00 259.73" fill="none" stroke="#7a2ea8" stroke-width="3" stroke-linecap="round" />
+        <circle cx="72.00" cy="254.63" r="4" fill="#1f4b99"><title>HF baseline c1: 0.52</title></circle><circle cx="263.00" cy="245.43" r="4" fill="#1f4b99"><title>HF baseline c2: 1.02</title></circle><circle cx="454.00" cy="223.83" r="4" fill="#1f4b99"><title>HF baseline c4: 2.21</title></circle><circle cx="645.00" cy="147.41" r="4" fill="#1f4b99"><title>HF baseline c8: 6.41</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c16: 12.12</title></circle><circle cx="72.00" cy="254.66" r="4" fill="#d55c00"><title>vLLM bf16 c1: 0.51</title></circle><circle cx="263.00" cy="253.32" r="4" fill="#d55c00"><title>vLLM bf16 c2: 0.59</title></circle><circle cx="454.00" cy="252.59" r="4" fill="#d55c00"><title>vLLM bf16 c4: 0.63</title></circle><circle cx="645.00" cy="250.55" r="4" fill="#d55c00"><title>vLLM bf16 c8: 0.74</title></circle><circle cx="836.00" cy="245.10" r="4" fill="#d55c00"><title>vLLM bf16 c16: 1.04</title></circle><circle cx="72.00" cy="254.66" r="4" fill="#16803c"><title>vLLM + APC c1: 0.51</title></circle><circle cx="263.00" cy="253.31" r="4" fill="#16803c"><title>vLLM + APC c2: 0.59</title></circle><circle cx="454.00" cy="252.59" r="4" fill="#16803c"><title>vLLM + APC c4: 0.63</title></circle><circle cx="645.00" cy="250.55" r="4" fill="#16803c"><title>vLLM + APC c8: 0.74</title></circle><circle cx="836.00" cy="245.12" r="4" fill="#16803c"><title>vLLM + APC c16: 1.04</title></circle><circle cx="72.00" cy="260.99" r="4" fill="#7a2ea8"><title>vLLM int4 c1: 0.17</title></circle><circle cx="263.00" cy="260.97" r="4" fill="#7a2ea8"><title>vLLM int4 c2: 0.17</title></circle><circle cx="454.00" cy="260.86" r="4" fill="#7a2ea8"><title>vLLM int4 c4: 0.17</title></circle><circle cx="645.00" cy="260.61" r="4" fill="#7a2ea8"><title>vLLM int4 c8: 0.19</title></circle><circle cx="836.00" cy="259.73" r="4" fill="#7a2ea8"><title>vLLM int4 c16: 0.23</title></circle>
+      </svg>
+    </section>
+    
+    <section class="chart-section">
+      <div class="chart-header">
+        <h3>p99 latency vs concurrency</h3>
+        <div class="legend"><div class="legend-item"><span class="legend-swatch" style="background:#1f4b99"></span>HF baseline</div><div class="legend-item"><span class="legend-swatch" style="background:#d55c00"></span>vLLM bf16</div><div class="legend-item"><span class="legend-swatch" style="background:#16803c"></span>vLLM + APC</div><div class="legend-item"><span class="legend-swatch" style="background:#7a2ea8"></span>vLLM int4</div></div>
+      </div>
+      <svg viewBox="0 0 860 320" class="chart" role="img" aria-label="p99 latency vs concurrency">
+        <text x="430.00" y="18" text-anchor="middle" class="chart-title">p99 latency vs concurrency</text>
+        <text x="18" y="160.00" transform="rotate(-90 18 160.00)" class="axis-label">seconds</text>
+        <line x1="72" y1="264.00" x2="836" y2="264.00" class="grid" /><text x="62" y="268.00" text-anchor="end" class="axis-label">0.00</text><line x1="72" y1="204.50" x2="836" y2="204.50" class="grid" /><text x="62" y="208.50" text-anchor="end" class="axis-label">3.37</text><line x1="72" y1="145.00" x2="836" y2="145.00" class="grid" /><text x="62" y="149.00" text-anchor="end" class="axis-label">6.74</text><line x1="72" y1="85.50" x2="836" y2="85.50" class="grid" /><text x="62" y="89.50" text-anchor="end" class="axis-label">10.11</text><line x1="72" y1="26.00" x2="836" y2="26.00" class="grid" /><text x="62" y="30.00" text-anchor="end" class="axis-label">13.48</text>
+        <line x1="72.00" y1="26" x2="72.00" y2="264" class="grid xgrid" /><text x="72.00" y="286" text-anchor="middle" class="axis-label">c1</text><line x1="263.00" y1="26" x2="263.00" y2="264" class="grid xgrid" /><text x="263.00" y="286" text-anchor="middle" class="axis-label">c2</text><line x1="454.00" y1="26" x2="454.00" y2="264" class="grid xgrid" /><text x="454.00" y="286" text-anchor="middle" class="axis-label">c4</text><line x1="645.00" y1="26" x2="645.00" y2="264" class="grid xgrid" /><text x="645.00" y="286" text-anchor="middle" class="axis-label">c8</text><line x1="836.00" y1="26" x2="836.00" y2="264" class="grid xgrid" /><text x="836.00" y="286" text-anchor="middle" class="axis-label">c16</text>
+        <line x1="72" y1="264" x2="836" y2="264" class="axis" />
+        <line x1="72" y1="26" x2="72" y2="264" class="axis" />
+        <path d="M 72.00 254.73 L 263.00 245.50 L 454.00 223.95 L 645.00 146.61 L 836.00 43.63" fill="none" stroke="#1f4b99" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 254.87 L 263.00 253.30 L 454.00 252.22 L 645.00 249.82 L 836.00 242.38" fill="none" stroke="#d55c00" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 254.88 L 263.00 253.32 L 454.00 252.19 L 645.00 249.75 L 836.00 242.42" fill="none" stroke="#16803c" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 261.03 L 263.00 261.03 L 454.00 260.91 L 645.00 260.56 L 836.00 259.51" fill="none" stroke="#7a2ea8" stroke-width="3" stroke-linecap="round" />
+        <circle cx="72.00" cy="254.73" r="4" fill="#1f4b99"><title>HF baseline c1: 0.52</title></circle><circle cx="263.00" cy="245.50" r="4" fill="#1f4b99"><title>HF baseline c2: 1.05</title></circle><circle cx="454.00" cy="223.95" r="4" fill="#1f4b99"><title>HF baseline c4: 2.27</title></circle><circle cx="645.00" cy="146.61" r="4" fill="#1f4b99"><title>HF baseline c8: 6.65</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c16: 12.48</title></circle><circle cx="72.00" cy="254.87" r="4" fill="#d55c00"><title>vLLM bf16 c1: 0.52</title></circle><circle cx="263.00" cy="253.30" r="4" fill="#d55c00"><title>vLLM bf16 c2: 0.61</title></circle><circle cx="454.00" cy="252.22" r="4" fill="#d55c00"><title>vLLM bf16 c4: 0.67</title></circle><circle cx="645.00" cy="249.82" r="4" fill="#d55c00"><title>vLLM bf16 c8: 0.80</title></circle><circle cx="836.00" cy="242.38" r="4" fill="#d55c00"><title>vLLM bf16 c16: 1.22</title></circle><circle cx="72.00" cy="254.88" r="4" fill="#16803c"><title>vLLM + APC c1: 0.52</title></circle><circle cx="263.00" cy="253.32" r="4" fill="#16803c"><title>vLLM + APC c2: 0.60</title></circle><circle cx="454.00" cy="252.19" r="4" fill="#16803c"><title>vLLM + APC c4: 0.67</title></circle><circle cx="645.00" cy="249.75" r="4" fill="#16803c"><title>vLLM + APC c8: 0.81</title></circle><circle cx="836.00" cy="242.42" r="4" fill="#16803c"><title>vLLM + APC c16: 1.22</title></circle><circle cx="72.00" cy="261.03" r="4" fill="#7a2ea8"><title>vLLM int4 c1: 0.17</title></circle><circle cx="263.00" cy="261.03" r="4" fill="#7a2ea8"><title>vLLM int4 c2: 0.17</title></circle><circle cx="454.00" cy="260.91" r="4" fill="#7a2ea8"><title>vLLM int4 c4: 0.18</title></circle><circle cx="645.00" cy="260.56" r="4" fill="#7a2ea8"><title>vLLM int4 c8: 0.19</title></circle><circle cx="836.00" cy="259.51" r="4" fill="#7a2ea8"><title>vLLM int4 c16: 0.25</title></circle>
+      </svg>
+    </section>
+    
+    <section class="chart-section">
+      <div class="chart-header">
+        <h3>Average TTFT vs concurrency</h3>
+        <div class="legend"><div class="legend-item"><span class="legend-swatch" style="background:#1f4b99"></span>HF baseline</div><div class="legend-item"><span class="legend-swatch" style="background:#d55c00"></span>vLLM bf16</div><div class="legend-item"><span class="legend-swatch" style="background:#16803c"></span>vLLM + APC</div><div class="legend-item"><span class="legend-swatch" style="background:#7a2ea8"></span>vLLM int4</div></div>
+      </div>
+      <svg viewBox="0 0 860 320" class="chart" role="img" aria-label="Average TTFT vs concurrency">
+        <text x="430.00" y="18" text-anchor="middle" class="chart-title">Average TTFT vs concurrency</text>
+        <text x="18" y="160.00" transform="rotate(-90 18 160.00)" class="axis-label">seconds</text>
+        <line x1="72" y1="264.00" x2="836" y2="264.00" class="grid" /><text x="62" y="268.00" text-anchor="end" class="axis-label">0.00</text><line x1="72" y1="204.50" x2="836" y2="204.50" class="grid" /><text x="62" y="208.50" text-anchor="end" class="axis-label">0.42</text><line x1="72" y1="145.00" x2="836" y2="145.00" class="grid" /><text x="62" y="149.00" text-anchor="end" class="axis-label">0.85</text><line x1="72" y1="85.50" x2="836" y2="85.50" class="grid" /><text x="62" y="89.50" text-anchor="end" class="axis-label">1.27</text><line x1="72" y1="26.00" x2="836" y2="26.00" class="grid" /><text x="62" y="30.00" text-anchor="end" class="axis-label">1.69</text>
+        <line x1="72.00" y1="26" x2="72.00" y2="264" class="grid xgrid" /><text x="72.00" y="286" text-anchor="middle" class="axis-label">c1</text><line x1="263.00" y1="26" x2="263.00" y2="264" class="grid xgrid" /><text x="263.00" y="286" text-anchor="middle" class="axis-label">c2</text><line x1="454.00" y1="26" x2="454.00" y2="264" class="grid xgrid" /><text x="454.00" y="286" text-anchor="middle" class="axis-label">c4</text><line x1="645.00" y1="26" x2="645.00" y2="264" class="grid xgrid" /><text x="645.00" y="286" text-anchor="middle" class="axis-label">c8</text><line x1="836.00" y1="26" x2="836.00" y2="264" class="grid xgrid" /><text x="836.00" y="286" text-anchor="middle" class="axis-label">c16</text>
+        <line x1="72" y1="264" x2="836" y2="264" class="axis" />
+        <line x1="72" y1="26" x2="72" y2="264" class="axis" />
+        <path d="M 72.00 252.46 L 263.00 243.24 L 454.00 221.68 L 645.00 146.67 L 836.00 43.63" fill="none" stroke="#1f4b99" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 247.59 L 263.00 243.93 L 454.00 241.55 L 645.00 238.90 L 836.00 234.43" fill="none" stroke="#d55c00" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 247.58 L 263.00 243.92 L 454.00 241.53 L 645.00 238.89 L 836.00 234.44" fill="none" stroke="#16803c" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 258.00 L 263.00 258.09 L 454.00 257.91 L 645.00 257.65 L 836.00 257.10" fill="none" stroke="#7a2ea8" stroke-width="3" stroke-linecap="round" />
+        <circle cx="72.00" cy="252.46" r="4" fill="#1f4b99"><title>HF baseline c1: 0.08</title></circle><circle cx="263.00" cy="243.24" r="4" fill="#1f4b99"><title>HF baseline c2: 0.15</title></circle><circle cx="454.00" cy="221.68" r="4" fill="#1f4b99"><title>HF baseline c4: 0.30</title></circle><circle cx="645.00" cy="146.67" r="4" fill="#1f4b99"><title>HF baseline c8: 0.83</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c16: 1.57</title></circle><circle cx="72.00" cy="247.59" r="4" fill="#d55c00"><title>vLLM bf16 c1: 0.12</title></circle><circle cx="263.00" cy="243.93" r="4" fill="#d55c00"><title>vLLM bf16 c2: 0.14</title></circle><circle cx="454.00" cy="241.55" r="4" fill="#d55c00"><title>vLLM bf16 c4: 0.16</title></circle><circle cx="645.00" cy="238.90" r="4" fill="#d55c00"><title>vLLM bf16 c8: 0.18</title></circle><circle cx="836.00" cy="234.43" r="4" fill="#d55c00"><title>vLLM bf16 c16: 0.21</title></circle><circle cx="72.00" cy="247.58" r="4" fill="#16803c"><title>vLLM + APC c1: 0.12</title></circle><circle cx="263.00" cy="243.92" r="4" fill="#16803c"><title>vLLM + APC c2: 0.14</title></circle><circle cx="454.00" cy="241.53" r="4" fill="#16803c"><title>vLLM + APC c4: 0.16</title></circle><circle cx="645.00" cy="238.89" r="4" fill="#16803c"><title>vLLM + APC c8: 0.18</title></circle><circle cx="836.00" cy="234.44" r="4" fill="#16803c"><title>vLLM + APC c16: 0.21</title></circle><circle cx="72.00" cy="258.00" r="4" fill="#7a2ea8"><title>vLLM int4 c1: 0.04</title></circle><circle cx="263.00" cy="258.09" r="4" fill="#7a2ea8"><title>vLLM int4 c2: 0.04</title></circle><circle cx="454.00" cy="257.91" r="4" fill="#7a2ea8"><title>vLLM int4 c4: 0.04</title></circle><circle cx="645.00" cy="257.65" r="4" fill="#7a2ea8"><title>vLLM int4 c8: 0.05</title></circle><circle cx="836.00" cy="257.10" r="4" fill="#7a2ea8"><title>vLLM int4 c16: 0.05</title></circle>
+      </svg>
+    </section>
+    
+    <section class="chart-section">
+      <div class="chart-header">
+        <h3>Valid-only accuracy vs concurrency</h3>
+        <div class="legend"><div class="legend-item"><span class="legend-swatch" style="background:#1f4b99"></span>HF baseline</div><div class="legend-item"><span class="legend-swatch" style="background:#d55c00"></span>vLLM bf16</div><div class="legend-item"><span class="legend-swatch" style="background:#16803c"></span>vLLM + APC</div><div class="legend-item"><span class="legend-swatch" style="background:#7a2ea8"></span>vLLM int4</div></div>
+      </div>
+      <svg viewBox="0 0 860 320" class="chart" role="img" aria-label="Valid-only accuracy vs concurrency">
+        <text x="430.00" y="18" text-anchor="middle" class="chart-title">Valid-only accuracy vs concurrency</text>
+        <text x="18" y="160.00" transform="rotate(-90 18 160.00)" class="axis-label">accuracy</text>
+        <line x1="72" y1="264.00" x2="836" y2="264.00" class="grid" /><text x="62" y="268.00" text-anchor="end" class="axis-label">0.0%</text><line x1="72" y1="204.50" x2="836" y2="204.50" class="grid" /><text x="62" y="208.50" text-anchor="end" class="axis-label">21.1%</text><line x1="72" y1="145.00" x2="836" y2="145.00" class="grid" /><text x="62" y="149.00" text-anchor="end" class="axis-label">42.2%</text><line x1="72" y1="85.50" x2="836" y2="85.50" class="grid" /><text x="62" y="89.50" text-anchor="end" class="axis-label">63.3%</text><line x1="72" y1="26.00" x2="836" y2="26.00" class="grid" /><text x="62" y="30.00" text-anchor="end" class="axis-label">84.5%</text>
+        <line x1="72.00" y1="26" x2="72.00" y2="264" class="grid xgrid" /><text x="72.00" y="286" text-anchor="middle" class="axis-label">c1</text><line x1="263.00" y1="26" x2="263.00" y2="264" class="grid xgrid" /><text x="263.00" y="286" text-anchor="middle" class="axis-label">c2</text><line x1="454.00" y1="26" x2="454.00" y2="264" class="grid xgrid" /><text x="454.00" y="286" text-anchor="middle" class="axis-label">c4</text><line x1="645.00" y1="26" x2="645.00" y2="264" class="grid xgrid" /><text x="645.00" y="286" text-anchor="middle" class="axis-label">c8</text><line x1="836.00" y1="26" x2="836.00" y2="264" class="grid xgrid" /><text x="836.00" y="286" text-anchor="middle" class="axis-label">c16</text>
+        <line x1="72" y1="264" x2="836" y2="264" class="axis" />
+        <line x1="72" y1="26" x2="72" y2="264" class="axis" />
+        <path d="M 72.00 43.63 L 263.00 43.63 L 454.00 43.63 L 645.00 43.63 L 836.00 43.63" fill="none" stroke="#1f4b99" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 53.72 L 263.00 53.72 L 454.00 54.01 L 645.00 54.01 L 836.00 53.72" fill="none" stroke="#d55c00" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 53.72 L 263.00 53.72 L 454.00 54.01 L 645.00 54.01 L 836.00 53.72" fill="none" stroke="#16803c" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 68.68 L 263.00 68.68 L 454.00 68.68 L 645.00 68.68 L 836.00 68.68" fill="none" stroke="#7a2ea8" stroke-width="3" stroke-linecap="round" />
+        <circle cx="72.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c1: 78.2%</title></circle><circle cx="263.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c2: 78.2%</title></circle><circle cx="454.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c4: 78.2%</title></circle><circle cx="645.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c8: 78.2%</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c16: 78.2%</title></circle><circle cx="72.00" cy="53.72" r="4" fill="#d55c00"><title>vLLM bf16 c1: 74.6%</title></circle><circle cx="263.00" cy="53.72" r="4" fill="#d55c00"><title>vLLM bf16 c2: 74.6%</title></circle><circle cx="454.00" cy="54.01" r="4" fill="#d55c00"><title>vLLM bf16 c4: 74.5%</title></circle><circle cx="645.00" cy="54.01" r="4" fill="#d55c00"><title>vLLM bf16 c8: 74.5%</title></circle><circle cx="836.00" cy="53.72" r="4" fill="#d55c00"><title>vLLM bf16 c16: 74.6%</title></circle><circle cx="72.00" cy="53.72" r="4" fill="#16803c"><title>vLLM + APC c1: 74.6%</title></circle><circle cx="263.00" cy="53.72" r="4" fill="#16803c"><title>vLLM + APC c2: 74.6%</title></circle><circle cx="454.00" cy="54.01" r="4" fill="#16803c"><title>vLLM + APC c4: 74.5%</title></circle><circle cx="645.00" cy="54.01" r="4" fill="#16803c"><title>vLLM + APC c8: 74.5%</title></circle><circle cx="836.00" cy="53.72" r="4" fill="#16803c"><title>vLLM + APC c16: 74.6%</title></circle><circle cx="72.00" cy="68.68" r="4" fill="#7a2ea8"><title>vLLM int4 c1: 69.3%</title></circle><circle cx="263.00" cy="68.68" r="4" fill="#7a2ea8"><title>vLLM int4 c2: 69.3%</title></circle><circle cx="454.00" cy="68.68" r="4" fill="#7a2ea8"><title>vLLM int4 c4: 69.3%</title></circle><circle cx="645.00" cy="68.68" r="4" fill="#7a2ea8"><title>vLLM int4 c8: 69.3%</title></circle><circle cx="836.00" cy="68.68" r="4" fill="#7a2ea8"><title>vLLM int4 c16: 69.3%</title></circle>
+      </svg>
+    </section>
+    
+    <section class="chart-section">
+      <div class="chart-header">
+        <h3>Overall accuracy vs concurrency</h3>
+        <div class="legend"><div class="legend-item"><span class="legend-swatch" style="background:#1f4b99"></span>HF baseline</div><div class="legend-item"><span class="legend-swatch" style="background:#d55c00"></span>vLLM bf16</div><div class="legend-item"><span class="legend-swatch" style="background:#16803c"></span>vLLM + APC</div><div class="legend-item"><span class="legend-swatch" style="background:#7a2ea8"></span>vLLM int4</div></div>
+      </div>
+      <svg viewBox="0 0 860 320" class="chart" role="img" aria-label="Overall accuracy vs concurrency">
+        <text x="430.00" y="18" text-anchor="middle" class="chart-title">Overall accuracy vs concurrency</text>
+        <text x="18" y="160.00" transform="rotate(-90 18 160.00)" class="axis-label">accuracy</text>
+        <line x1="72" y1="264.00" x2="836" y2="264.00" class="grid" /><text x="62" y="268.00" text-anchor="end" class="axis-label">0.0%</text><line x1="72" y1="204.50" x2="836" y2="204.50" class="grid" /><text x="62" y="208.50" text-anchor="end" class="axis-label">20.8%</text><line x1="72" y1="145.00" x2="836" y2="145.00" class="grid" /><text x="62" y="149.00" text-anchor="end" class="axis-label">41.7%</text><line x1="72" y1="85.50" x2="836" y2="85.50" class="grid" /><text x="62" y="89.50" text-anchor="end" class="axis-label">62.5%</text><line x1="72" y1="26.00" x2="836" y2="26.00" class="grid" /><text x="62" y="30.00" text-anchor="end" class="axis-label">83.3%</text>
+        <line x1="72.00" y1="26" x2="72.00" y2="264" class="grid xgrid" /><text x="72.00" y="286" text-anchor="middle" class="axis-label">c1</text><line x1="263.00" y1="26" x2="263.00" y2="264" class="grid xgrid" /><text x="263.00" y="286" text-anchor="middle" class="axis-label">c2</text><line x1="454.00" y1="26" x2="454.00" y2="264" class="grid xgrid" /><text x="454.00" y="286" text-anchor="middle" class="axis-label">c4</text><line x1="645.00" y1="26" x2="645.00" y2="264" class="grid xgrid" /><text x="645.00" y="286" text-anchor="middle" class="axis-label">c8</text><line x1="836.00" y1="26" x2="836.00" y2="264" class="grid xgrid" /><text x="836.00" y="286" text-anchor="middle" class="axis-label">c16</text>
+        <line x1="72" y1="264" x2="836" y2="264" class="axis" />
+        <line x1="72" y1="26" x2="72" y2="264" class="axis" />
+        <path d="M 72.00 43.63 L 263.00 43.63 L 454.00 43.63 L 645.00 43.63 L 836.00 43.63" fill="none" stroke="#1f4b99" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 52.86 L 263.00 52.86 L 454.00 53.15 L 645.00 53.15 L 836.00 52.86" fill="none" stroke="#d55c00" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 52.86 L 263.00 52.86 L 454.00 53.15 L 645.00 53.15 L 836.00 52.86" fill="none" stroke="#16803c" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 67.28 L 263.00 67.28 L 454.00 67.28 L 645.00 67.28 L 836.00 67.28" fill="none" stroke="#7a2ea8" stroke-width="3" stroke-linecap="round" />
+        <circle cx="72.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c1: 77.2%</title></circle><circle cx="263.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c2: 77.2%</title></circle><circle cx="454.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c4: 77.2%</title></circle><circle cx="645.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c8: 77.2%</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c16: 77.2%</title></circle><circle cx="72.00" cy="52.86" r="4" fill="#d55c00"><title>vLLM bf16 c1: 73.9%</title></circle><circle cx="263.00" cy="52.86" r="4" fill="#d55c00"><title>vLLM bf16 c2: 73.9%</title></circle><circle cx="454.00" cy="53.15" r="4" fill="#d55c00"><title>vLLM bf16 c4: 73.8%</title></circle><circle cx="645.00" cy="53.15" r="4" fill="#d55c00"><title>vLLM bf16 c8: 73.8%</title></circle><circle cx="836.00" cy="52.86" r="4" fill="#d55c00"><title>vLLM bf16 c16: 73.9%</title></circle><circle cx="72.00" cy="52.86" r="4" fill="#16803c"><title>vLLM + APC c1: 73.9%</title></circle><circle cx="263.00" cy="52.86" r="4" fill="#16803c"><title>vLLM + APC c2: 73.9%</title></circle><circle cx="454.00" cy="53.15" r="4" fill="#16803c"><title>vLLM + APC c4: 73.8%</title></circle><circle cx="645.00" cy="53.15" r="4" fill="#16803c"><title>vLLM + APC c8: 73.8%</title></circle><circle cx="836.00" cy="52.86" r="4" fill="#16803c"><title>vLLM + APC c16: 73.9%</title></circle><circle cx="72.00" cy="67.28" r="4" fill="#7a2ea8"><title>vLLM int4 c1: 68.9%</title></circle><circle cx="263.00" cy="67.28" r="4" fill="#7a2ea8"><title>vLLM int4 c2: 68.9%</title></circle><circle cx="454.00" cy="67.28" r="4" fill="#7a2ea8"><title>vLLM int4 c4: 68.9%</title></circle><circle cx="645.00" cy="67.28" r="4" fill="#7a2ea8"><title>vLLM int4 c8: 68.9%</title></circle><circle cx="836.00" cy="67.28" r="4" fill="#7a2ea8"><title>vLLM int4 c16: 68.9%</title></circle>
+      </svg>
+    </section>
+    
+    <section class="chart-section">
+      <div class="chart-header">
+        <h3>Invalid predictions vs concurrency</h3>
+        <div class="legend"><div class="legend-item"><span class="legend-swatch" style="background:#1f4b99"></span>HF baseline</div><div class="legend-item"><span class="legend-swatch" style="background:#d55c00"></span>vLLM bf16</div><div class="legend-item"><span class="legend-swatch" style="background:#16803c"></span>vLLM + APC</div><div class="legend-item"><span class="legend-swatch" style="background:#7a2ea8"></span>vLLM int4</div></div>
+      </div>
+      <svg viewBox="0 0 860 320" class="chart" role="img" aria-label="Invalid predictions vs concurrency">
+        <text x="430.00" y="18" text-anchor="middle" class="chart-title">Invalid predictions vs concurrency</text>
+        <text x="18" y="160.00" transform="rotate(-90 18 160.00)" class="axis-label">count</text>
+        <line x1="72" y1="264.00" x2="836" y2="264.00" class="grid" /><text x="62" y="268.00" text-anchor="end" class="axis-label">0</text><line x1="72" y1="204.50" x2="836" y2="204.50" class="grid" /><text x="62" y="208.50" text-anchor="end" class="axis-label">4</text><line x1="72" y1="145.00" x2="836" y2="145.00" class="grid" /><text x="62" y="149.00" text-anchor="end" class="axis-label">7</text><line x1="72" y1="85.50" x2="836" y2="85.50" class="grid" /><text x="62" y="89.50" text-anchor="end" class="axis-label">11</text><line x1="72" y1="26.00" x2="836" y2="26.00" class="grid" /><text x="62" y="30.00" text-anchor="end" class="axis-label">14</text>
+        <line x1="72.00" y1="26" x2="72.00" y2="264" class="grid xgrid" /><text x="72.00" y="286" text-anchor="middle" class="axis-label">c1</text><line x1="263.00" y1="26" x2="263.00" y2="264" class="grid xgrid" /><text x="263.00" y="286" text-anchor="middle" class="axis-label">c2</text><line x1="454.00" y1="26" x2="454.00" y2="264" class="grid xgrid" /><text x="454.00" y="286" text-anchor="middle" class="axis-label">c4</text><line x1="645.00" y1="26" x2="645.00" y2="264" class="grid xgrid" /><text x="645.00" y="286" text-anchor="middle" class="axis-label">c8</text><line x1="836.00" y1="26" x2="836.00" y2="264" class="grid xgrid" /><text x="836.00" y="286" text-anchor="middle" class="axis-label">c16</text>
+        <line x1="72" y1="264" x2="836" y2="264" class="axis" />
+        <line x1="72" y1="26" x2="72" y2="264" class="axis" />
+        <path d="M 72.00 43.63 L 263.00 43.63 L 454.00 43.63 L 645.00 43.63 L 836.00 43.63" fill="none" stroke="#1f4b99" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 111.44 L 263.00 111.44 L 454.00 111.44 L 645.00 111.44 L 836.00 111.44" fill="none" stroke="#d55c00" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 111.44 L 263.00 111.44 L 454.00 111.44 L 645.00 111.44 L 836.00 111.44" fill="none" stroke="#16803c" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 162.29 L 263.00 162.29 L 454.00 162.29 L 645.00 162.29 L 836.00 162.29" fill="none" stroke="#7a2ea8" stroke-width="3" stroke-linecap="round" />
+        <circle cx="72.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c1: 13</title></circle><circle cx="263.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c2: 13</title></circle><circle cx="454.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c4: 13</title></circle><circle cx="645.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c8: 13</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c16: 13</title></circle><circle cx="72.00" cy="111.44" r="4" fill="#d55c00"><title>vLLM bf16 c1: 9</title></circle><circle cx="263.00" cy="111.44" r="4" fill="#d55c00"><title>vLLM bf16 c2: 9</title></circle><circle cx="454.00" cy="111.44" r="4" fill="#d55c00"><title>vLLM bf16 c4: 9</title></circle><circle cx="645.00" cy="111.44" r="4" fill="#d55c00"><title>vLLM bf16 c8: 9</title></circle><circle cx="836.00" cy="111.44" r="4" fill="#d55c00"><title>vLLM bf16 c16: 9</title></circle><circle cx="72.00" cy="111.44" r="4" fill="#16803c"><title>vLLM + APC c1: 9</title></circle><circle cx="263.00" cy="111.44" r="4" fill="#16803c"><title>vLLM + APC c2: 9</title></circle><circle cx="454.00" cy="111.44" r="4" fill="#16803c"><title>vLLM + APC c4: 9</title></circle><circle cx="645.00" cy="111.44" r="4" fill="#16803c"><title>vLLM + APC c8: 9</title></circle><circle cx="836.00" cy="111.44" r="4" fill="#16803c"><title>vLLM + APC c16: 9</title></circle><circle cx="72.00" cy="162.29" r="4" fill="#7a2ea8"><title>vLLM int4 c1: 6</title></circle><circle cx="263.00" cy="162.29" r="4" fill="#7a2ea8"><title>vLLM int4 c2: 6</title></circle><circle cx="454.00" cy="162.29" r="4" fill="#7a2ea8"><title>vLLM int4 c4: 6</title></circle><circle cx="645.00" cy="162.29" r="4" fill="#7a2ea8"><title>vLLM int4 c8: 6</title></circle><circle cx="836.00" cy="162.29" r="4" fill="#7a2ea8"><title>vLLM int4 c16: 6</title></circle>
+      </svg>
+    </section>
+    
+    <section class="chart-section">
+      <div class="chart-header">
+        <h3>Average GPU utilization vs concurrency</h3>
+        <div class="legend"><div class="legend-item"><span class="legend-swatch" style="background:#1f4b99"></span>HF baseline</div><div class="legend-item"><span class="legend-swatch" style="background:#d55c00"></span>vLLM bf16</div><div class="legend-item"><span class="legend-swatch" style="background:#16803c"></span>vLLM + APC</div><div class="legend-item"><span class="legend-swatch" style="background:#7a2ea8"></span>vLLM int4</div></div>
+      </div>
+      <svg viewBox="0 0 860 320" class="chart" role="img" aria-label="Average GPU utilization vs concurrency">
+        <text x="430.00" y="18" text-anchor="middle" class="chart-title">Average GPU utilization vs concurrency</text>
+        <text x="18" y="160.00" transform="rotate(-90 18 160.00)" class="axis-label">gpu %</text>
+        <line x1="72" y1="264.00" x2="836" y2="264.00" class="grid" /><text x="62" y="268.00" text-anchor="end" class="axis-label">0%</text><line x1="72" y1="204.50" x2="836" y2="204.50" class="grid" /><text x="62" y="208.50" text-anchor="end" class="axis-label">27%</text><line x1="72" y1="145.00" x2="836" y2="145.00" class="grid" /><text x="62" y="149.00" text-anchor="end" class="axis-label">54%</text><line x1="72" y1="85.50" x2="836" y2="85.50" class="grid" /><text x="62" y="89.50" text-anchor="end" class="axis-label">81%</text><line x1="72" y1="26.00" x2="836" y2="26.00" class="grid" /><text x="62" y="30.00" text-anchor="end" class="axis-label">107%</text>
+        <line x1="72.00" y1="26" x2="72.00" y2="264" class="grid xgrid" /><text x="72.00" y="286" text-anchor="middle" class="axis-label">c1</text><line x1="263.00" y1="26" x2="263.00" y2="264" class="grid xgrid" /><text x="263.00" y="286" text-anchor="middle" class="axis-label">c2</text><line x1="454.00" y1="26" x2="454.00" y2="264" class="grid xgrid" /><text x="454.00" y="286" text-anchor="middle" class="axis-label">c4</text><line x1="645.00" y1="26" x2="645.00" y2="264" class="grid xgrid" /><text x="645.00" y="286" text-anchor="middle" class="axis-label">c8</text><line x1="836.00" y1="26" x2="836.00" y2="264" class="grid xgrid" /><text x="836.00" y="286" text-anchor="middle" class="axis-label">c16</text>
+        <line x1="72" y1="264" x2="836" y2="264" class="axis" />
+        <line x1="72" y1="26" x2="72" y2="264" class="axis" />
+        <path d="M 72.00 58.66 L 263.00 52.97 L 454.00 62.34 L 645.00 126.16 L 836.00 116.29" fill="none" stroke="#1f4b99" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 46.38 L 263.00 43.63 L 454.00 44.14 L 645.00 46.49 L 836.00 47.87" fill="none" stroke="#d55c00" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 46.49 L 263.00 44.27 L 454.00 44.63 L 645.00 46.61 L 836.00 48.03" fill="none" stroke="#16803c" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 55.57 L 263.00 48.83 L 454.00 51.16 L 645.00 57.53 L 836.00 65.28" fill="none" stroke="#7a2ea8" stroke-width="3" stroke-linecap="round" />
+        <circle cx="72.00" cy="58.66" r="4" fill="#1f4b99"><title>HF baseline c1: 93%</title></circle><circle cx="263.00" cy="52.97" r="4" fill="#1f4b99"><title>HF baseline c2: 95%</title></circle><circle cx="454.00" cy="62.34" r="4" fill="#1f4b99"><title>HF baseline c4: 91%</title></circle><circle cx="645.00" cy="126.16" r="4" fill="#1f4b99"><title>HF baseline c8: 62%</title></circle><circle cx="836.00" cy="116.29" r="4" fill="#1f4b99"><title>HF baseline c16: 67%</title></circle><circle cx="72.00" cy="46.38" r="4" fill="#d55c00"><title>vLLM bf16 c1: 98%</title></circle><circle cx="263.00" cy="43.63" r="4" fill="#d55c00"><title>vLLM bf16 c2: 99%</title></circle><circle cx="454.00" cy="44.14" r="4" fill="#d55c00"><title>vLLM bf16 c4: 99%</title></circle><circle cx="645.00" cy="46.49" r="4" fill="#d55c00"><title>vLLM bf16 c8: 98%</title></circle><circle cx="836.00" cy="47.87" r="4" fill="#d55c00"><title>vLLM bf16 c16: 98%</title></circle><circle cx="72.00" cy="46.49" r="4" fill="#16803c"><title>vLLM + APC c1: 98%</title></circle><circle cx="263.00" cy="44.27" r="4" fill="#16803c"><title>vLLM + APC c2: 99%</title></circle><circle cx="454.00" cy="44.63" r="4" fill="#16803c"><title>vLLM + APC c4: 99%</title></circle><circle cx="645.00" cy="46.61" r="4" fill="#16803c"><title>vLLM + APC c8: 98%</title></circle><circle cx="836.00" cy="48.03" r="4" fill="#16803c"><title>vLLM + APC c16: 97%</title></circle><circle cx="72.00" cy="55.57" r="4" fill="#7a2ea8"><title>vLLM int4 c1: 94%</title></circle><circle cx="263.00" cy="48.83" r="4" fill="#7a2ea8"><title>vLLM int4 c2: 97%</title></circle><circle cx="454.00" cy="51.16" r="4" fill="#7a2ea8"><title>vLLM int4 c4: 96%</title></circle><circle cx="645.00" cy="57.53" r="4" fill="#7a2ea8"><title>vLLM int4 c8: 93%</title></circle><circle cx="836.00" cy="65.28" r="4" fill="#7a2ea8"><title>vLLM int4 c16: 90%</title></circle>
+      </svg>
+    </section>
+    
+    <section class="chart-section">
+      <div class="chart-header">
+        <h3>Peak GPU utilization vs concurrency</h3>
+        <div class="legend"><div class="legend-item"><span class="legend-swatch" style="background:#1f4b99"></span>HF baseline</div><div class="legend-item"><span class="legend-swatch" style="background:#d55c00"></span>vLLM bf16</div><div class="legend-item"><span class="legend-swatch" style="background:#16803c"></span>vLLM + APC</div><div class="legend-item"><span class="legend-swatch" style="background:#7a2ea8"></span>vLLM int4</div></div>
+      </div>
+      <svg viewBox="0 0 860 320" class="chart" role="img" aria-label="Peak GPU utilization vs concurrency">
+        <text x="430.00" y="18" text-anchor="middle" class="chart-title">Peak GPU utilization vs concurrency</text>
+        <text x="18" y="160.00" transform="rotate(-90 18 160.00)" class="axis-label">gpu %</text>
+        <line x1="72" y1="264.00" x2="836" y2="264.00" class="grid" /><text x="62" y="268.00" text-anchor="end" class="axis-label">0%</text><line x1="72" y1="204.50" x2="836" y2="204.50" class="grid" /><text x="62" y="208.50" text-anchor="end" class="axis-label">27%</text><line x1="72" y1="145.00" x2="836" y2="145.00" class="grid" /><text x="62" y="149.00" text-anchor="end" class="axis-label">54%</text><line x1="72" y1="85.50" x2="836" y2="85.50" class="grid" /><text x="62" y="89.50" text-anchor="end" class="axis-label">81%</text><line x1="72" y1="26.00" x2="836" y2="26.00" class="grid" /><text x="62" y="30.00" text-anchor="end" class="axis-label">108%</text>
+        <line x1="72.00" y1="26" x2="72.00" y2="264" class="grid xgrid" /><text x="72.00" y="286" text-anchor="middle" class="axis-label">c1</text><line x1="263.00" y1="26" x2="263.00" y2="264" class="grid xgrid" /><text x="263.00" y="286" text-anchor="middle" class="axis-label">c2</text><line x1="454.00" y1="26" x2="454.00" y2="264" class="grid xgrid" /><text x="454.00" y="286" text-anchor="middle" class="axis-label">c4</text><line x1="645.00" y1="26" x2="645.00" y2="264" class="grid xgrid" /><text x="645.00" y="286" text-anchor="middle" class="axis-label">c8</text><line x1="836.00" y1="26" x2="836.00" y2="264" class="grid xgrid" /><text x="836.00" y="286" text-anchor="middle" class="axis-label">c16</text>
+        <line x1="72" y1="264" x2="836" y2="264" class="axis" />
+        <line x1="72" y1="26" x2="72" y2="264" class="axis" />
+        <path d="M 72.00 48.04 L 263.00 43.63 L 454.00 43.63 L 645.00 48.04 L 836.00 54.65" fill="none" stroke="#1f4b99" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 43.63 L 263.00 43.63 L 454.00 43.63 L 645.00 43.63 L 836.00 43.63" fill="none" stroke="#d55c00" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 43.63 L 263.00 43.63 L 454.00 43.63 L 645.00 43.63 L 836.00 43.63" fill="none" stroke="#16803c" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 43.63 L 263.00 43.63 L 454.00 43.63 L 645.00 43.63 L 836.00 43.63" fill="none" stroke="#7a2ea8" stroke-width="3" stroke-linecap="round" />
+        <circle cx="72.00" cy="48.04" r="4" fill="#1f4b99"><title>HF baseline c1: 98%</title></circle><circle cx="263.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c2: 100%</title></circle><circle cx="454.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c4: 100%</title></circle><circle cx="645.00" cy="48.04" r="4" fill="#1f4b99"><title>HF baseline c8: 98%</title></circle><circle cx="836.00" cy="54.65" r="4" fill="#1f4b99"><title>HF baseline c16: 95%</title></circle><circle cx="72.00" cy="43.63" r="4" fill="#d55c00"><title>vLLM bf16 c1: 100%</title></circle><circle cx="263.00" cy="43.63" r="4" fill="#d55c00"><title>vLLM bf16 c2: 100%</title></circle><circle cx="454.00" cy="43.63" r="4" fill="#d55c00"><title>vLLM bf16 c4: 100%</title></circle><circle cx="645.00" cy="43.63" r="4" fill="#d55c00"><title>vLLM bf16 c8: 100%</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#d55c00"><title>vLLM bf16 c16: 100%</title></circle><circle cx="72.00" cy="43.63" r="4" fill="#16803c"><title>vLLM + APC c1: 100%</title></circle><circle cx="263.00" cy="43.63" r="4" fill="#16803c"><title>vLLM + APC c2: 100%</title></circle><circle cx="454.00" cy="43.63" r="4" fill="#16803c"><title>vLLM + APC c4: 100%</title></circle><circle cx="645.00" cy="43.63" r="4" fill="#16803c"><title>vLLM + APC c8: 100%</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#16803c"><title>vLLM + APC c16: 100%</title></circle><circle cx="72.00" cy="43.63" r="4" fill="#7a2ea8"><title>vLLM int4 c1: 100%</title></circle><circle cx="263.00" cy="43.63" r="4" fill="#7a2ea8"><title>vLLM int4 c2: 100%</title></circle><circle cx="454.00" cy="43.63" r="4" fill="#7a2ea8"><title>vLLM int4 c4: 100%</title></circle><circle cx="645.00" cy="43.63" r="4" fill="#7a2ea8"><title>vLLM int4 c8: 100%</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#7a2ea8"><title>vLLM int4 c16: 100%</title></circle>
+      </svg>
+    </section>
+    
+    <section class="chart-section">
+      <div class="chart-header">
+        <h3>Average GPU memory utilization vs concurrency</h3>
+        <div class="legend"><div class="legend-item"><span class="legend-swatch" style="background:#1f4b99"></span>HF baseline</div><div class="legend-item"><span class="legend-swatch" style="background:#d55c00"></span>vLLM bf16</div><div class="legend-item"><span class="legend-swatch" style="background:#16803c"></span>vLLM + APC</div><div class="legend-item"><span class="legend-swatch" style="background:#7a2ea8"></span>vLLM int4</div></div>
+      </div>
+      <svg viewBox="0 0 860 320" class="chart" role="img" aria-label="Average GPU memory utilization vs concurrency">
+        <text x="430.00" y="18" text-anchor="middle" class="chart-title">Average GPU memory utilization vs concurrency</text>
+        <text x="18" y="160.00" transform="rotate(-90 18 160.00)" class="axis-label">mem %</text>
+        <line x1="72" y1="264.00" x2="836" y2="264.00" class="grid" /><text x="62" y="268.00" text-anchor="end" class="axis-label">0%</text><line x1="72" y1="204.50" x2="836" y2="204.50" class="grid" /><text x="62" y="208.50" text-anchor="end" class="axis-label">27%</text><line x1="72" y1="145.00" x2="836" y2="145.00" class="grid" /><text x="62" y="149.00" text-anchor="end" class="axis-label">54%</text><line x1="72" y1="85.50" x2="836" y2="85.50" class="grid" /><text x="62" y="89.50" text-anchor="end" class="axis-label">81%</text><line x1="72" y1="26.00" x2="836" y2="26.00" class="grid" /><text x="62" y="30.00" text-anchor="end" class="axis-label">108%</text>
+        <line x1="72.00" y1="26" x2="72.00" y2="264" class="grid xgrid" /><text x="72.00" y="286" text-anchor="middle" class="axis-label">c1</text><line x1="263.00" y1="26" x2="263.00" y2="264" class="grid xgrid" /><text x="263.00" y="286" text-anchor="middle" class="axis-label">c2</text><line x1="454.00" y1="26" x2="454.00" y2="264" class="grid xgrid" /><text x="454.00" y="286" text-anchor="middle" class="axis-label">c4</text><line x1="645.00" y1="26" x2="645.00" y2="264" class="grid xgrid" /><text x="645.00" y="286" text-anchor="middle" class="axis-label">c8</text><line x1="836.00" y1="26" x2="836.00" y2="264" class="grid xgrid" /><text x="836.00" y="286" text-anchor="middle" class="axis-label">c16</text>
+        <line x1="72" y1="264" x2="836" y2="264" class="axis" />
+        <line x1="72" y1="26" x2="72" y2="264" class="axis" />
+        <path d="M 72.00 47.98 L 263.00 44.75 L 454.00 48.19 L 645.00 108.93 L 836.00 98.19" fill="none" stroke="#1f4b99" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 43.63 L 263.00 43.70 L 454.00 45.43 L 645.00 61.74 L 836.00 89.16" fill="none" stroke="#d55c00" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 43.63 L 263.00 44.84 L 454.00 45.33 L 645.00 61.94 L 836.00 93.05" fill="none" stroke="#16803c" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 50.61 L 263.00 47.22 L 454.00 51.26 L 645.00 57.65 L 836.00 75.50" fill="none" stroke="#7a2ea8" stroke-width="3" stroke-linecap="round" />
+        <circle cx="72.00" cy="47.98" r="4" fill="#1f4b99"><title>HF baseline c1: 98%</title></circle><circle cx="263.00" cy="44.75" r="4" fill="#1f4b99"><title>HF baseline c2: 99%</title></circle><circle cx="454.00" cy="48.19" r="4" fill="#1f4b99"><title>HF baseline c4: 98%</title></circle><circle cx="645.00" cy="108.93" r="4" fill="#1f4b99"><title>HF baseline c8: 70%</title></circle><circle cx="836.00" cy="98.19" r="4" fill="#1f4b99"><title>HF baseline c16: 75%</title></circle><circle cx="72.00" cy="43.63" r="4" fill="#d55c00"><title>vLLM bf16 c1: 100%</title></circle><circle cx="263.00" cy="43.70" r="4" fill="#d55c00"><title>vLLM bf16 c2: 100%</title></circle><circle cx="454.00" cy="45.43" r="4" fill="#d55c00"><title>vLLM bf16 c4: 99%</title></circle><circle cx="645.00" cy="61.74" r="4" fill="#d55c00"><title>vLLM bf16 c8: 91%</title></circle><circle cx="836.00" cy="89.16" r="4" fill="#d55c00"><title>vLLM bf16 c16: 79%</title></circle><circle cx="72.00" cy="43.63" r="4" fill="#16803c"><title>vLLM + APC c1: 100%</title></circle><circle cx="263.00" cy="44.84" r="4" fill="#16803c"><title>vLLM + APC c2: 99%</title></circle><circle cx="454.00" cy="45.33" r="4" fill="#16803c"><title>vLLM + APC c4: 99%</title></circle><circle cx="645.00" cy="61.94" r="4" fill="#16803c"><title>vLLM + APC c8: 91%</title></circle><circle cx="836.00" cy="93.05" r="4" fill="#16803c"><title>vLLM + APC c16: 77%</title></circle><circle cx="72.00" cy="50.61" r="4" fill="#7a2ea8"><title>vLLM int4 c1: 96%</title></circle><circle cx="263.00" cy="47.22" r="4" fill="#7a2ea8"><title>vLLM int4 c2: 98%</title></circle><circle cx="454.00" cy="51.26" r="4" fill="#7a2ea8"><title>vLLM int4 c4: 96%</title></circle><circle cx="645.00" cy="57.65" r="4" fill="#7a2ea8"><title>vLLM int4 c8: 93%</title></circle><circle cx="836.00" cy="75.50" r="4" fill="#7a2ea8"><title>vLLM int4 c16: 85%</title></circle>
+      </svg>
+    </section>
+    
+    <section class="chart-section">
+      <div class="chart-header">
+        <h3>Peak GPU memory utilization vs concurrency</h3>
+        <div class="legend"><div class="legend-item"><span class="legend-swatch" style="background:#1f4b99"></span>HF baseline</div><div class="legend-item"><span class="legend-swatch" style="background:#d55c00"></span>vLLM bf16</div><div class="legend-item"><span class="legend-swatch" style="background:#16803c"></span>vLLM + APC</div><div class="legend-item"><span class="legend-swatch" style="background:#7a2ea8"></span>vLLM int4</div></div>
+      </div>
+      <svg viewBox="0 0 860 320" class="chart" role="img" aria-label="Peak GPU memory utilization vs concurrency">
+        <text x="430.00" y="18" text-anchor="middle" class="chart-title">Peak GPU memory utilization vs concurrency</text>
+        <text x="18" y="160.00" transform="rotate(-90 18 160.00)" class="axis-label">mem %</text>
+        <line x1="72" y1="264.00" x2="836" y2="264.00" class="grid" /><text x="62" y="268.00" text-anchor="end" class="axis-label">0%</text><line x1="72" y1="204.50" x2="836" y2="204.50" class="grid" /><text x="62" y="208.50" text-anchor="end" class="axis-label">27%</text><line x1="72" y1="145.00" x2="836" y2="145.00" class="grid" /><text x="62" y="149.00" text-anchor="end" class="axis-label">54%</text><line x1="72" y1="85.50" x2="836" y2="85.50" class="grid" /><text x="62" y="89.50" text-anchor="end" class="axis-label">81%</text><line x1="72" y1="26.00" x2="836" y2="26.00" class="grid" /><text x="62" y="30.00" text-anchor="end" class="axis-label">108%</text>
+        <line x1="72.00" y1="26" x2="72.00" y2="264" class="grid xgrid" /><text x="72.00" y="286" text-anchor="middle" class="axis-label">c1</text><line x1="263.00" y1="26" x2="263.00" y2="264" class="grid xgrid" /><text x="263.00" y="286" text-anchor="middle" class="axis-label">c2</text><line x1="454.00" y1="26" x2="454.00" y2="264" class="grid xgrid" /><text x="454.00" y="286" text-anchor="middle" class="axis-label">c4</text><line x1="645.00" y1="26" x2="645.00" y2="264" class="grid xgrid" /><text x="645.00" y="286" text-anchor="middle" class="axis-label">c8</text><line x1="836.00" y1="26" x2="836.00" y2="264" class="grid xgrid" /><text x="836.00" y="286" text-anchor="middle" class="axis-label">c16</text>
+        <line x1="72" y1="264" x2="836" y2="264" class="axis" />
+        <line x1="72" y1="26" x2="72" y2="264" class="axis" />
+        <path d="M 72.00 43.63 L 263.00 43.63 L 454.00 43.63 L 645.00 43.63 L 836.00 43.63" fill="none" stroke="#1f4b99" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 43.63 L 263.00 43.63 L 454.00 43.63 L 645.00 43.63 L 836.00 43.63" fill="none" stroke="#d55c00" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 43.63 L 263.00 43.63 L 454.00 43.63 L 645.00 43.63 L 836.00 43.63" fill="none" stroke="#16803c" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 43.63 L 263.00 43.63 L 454.00 43.63 L 645.00 43.63 L 836.00 43.63" fill="none" stroke="#7a2ea8" stroke-width="3" stroke-linecap="round" />
+        <circle cx="72.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c1: 100%</title></circle><circle cx="263.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c2: 100%</title></circle><circle cx="454.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c4: 100%</title></circle><circle cx="645.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c8: 100%</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#1f4b99"><title>HF baseline c16: 100%</title></circle><circle cx="72.00" cy="43.63" r="4" fill="#d55c00"><title>vLLM bf16 c1: 100%</title></circle><circle cx="263.00" cy="43.63" r="4" fill="#d55c00"><title>vLLM bf16 c2: 100%</title></circle><circle cx="454.00" cy="43.63" r="4" fill="#d55c00"><title>vLLM bf16 c4: 100%</title></circle><circle cx="645.00" cy="43.63" r="4" fill="#d55c00"><title>vLLM bf16 c8: 100%</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#d55c00"><title>vLLM bf16 c16: 100%</title></circle><circle cx="72.00" cy="43.63" r="4" fill="#16803c"><title>vLLM + APC c1: 100%</title></circle><circle cx="263.00" cy="43.63" r="4" fill="#16803c"><title>vLLM + APC c2: 100%</title></circle><circle cx="454.00" cy="43.63" r="4" fill="#16803c"><title>vLLM + APC c4: 100%</title></circle><circle cx="645.00" cy="43.63" r="4" fill="#16803c"><title>vLLM + APC c8: 100%</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#16803c"><title>vLLM + APC c16: 100%</title></circle><circle cx="72.00" cy="43.63" r="4" fill="#7a2ea8"><title>vLLM int4 c1: 100%</title></circle><circle cx="263.00" cy="43.63" r="4" fill="#7a2ea8"><title>vLLM int4 c2: 100%</title></circle><circle cx="454.00" cy="43.63" r="4" fill="#7a2ea8"><title>vLLM int4 c4: 100%</title></circle><circle cx="645.00" cy="43.63" r="4" fill="#7a2ea8"><title>vLLM int4 c8: 100%</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#7a2ea8"><title>vLLM int4 c16: 100%</title></circle>
+      </svg>
+    </section>
+    
+    <section class="chart-section">
+      <div class="chart-header">
+        <h3>Average GPU memory used vs concurrency</h3>
+        <div class="legend"><div class="legend-item"><span class="legend-swatch" style="background:#1f4b99"></span>HF baseline</div><div class="legend-item"><span class="legend-swatch" style="background:#d55c00"></span>vLLM bf16</div><div class="legend-item"><span class="legend-swatch" style="background:#16803c"></span>vLLM + APC</div><div class="legend-item"><span class="legend-swatch" style="background:#7a2ea8"></span>vLLM int4</div></div>
+      </div>
+      <svg viewBox="0 0 860 320" class="chart" role="img" aria-label="Average GPU memory used vs concurrency">
+        <text x="430.00" y="18" text-anchor="middle" class="chart-title">Average GPU memory used vs concurrency</text>
+        <text x="18" y="160.00" transform="rotate(-90 18 160.00)" class="axis-label">MiB</text>
+        <line x1="72" y1="264.00" x2="836" y2="264.00" class="grid" /><text x="62" y="268.00" text-anchor="end" class="axis-label">0</text><line x1="72" y1="204.50" x2="836" y2="204.50" class="grid" /><text x="62" y="208.50" text-anchor="end" class="axis-label">5695</text><line x1="72" y1="145.00" x2="836" y2="145.00" class="grid" /><text x="62" y="149.00" text-anchor="end" class="axis-label">11390</text><line x1="72" y1="85.50" x2="836" y2="85.50" class="grid" /><text x="62" y="89.50" text-anchor="end" class="axis-label">17085</text><line x1="72" y1="26.00" x2="836" y2="26.00" class="grid" /><text x="62" y="30.00" text-anchor="end" class="axis-label">22780</text>
+        <line x1="72.00" y1="26" x2="72.00" y2="264" class="grid xgrid" /><text x="72.00" y="286" text-anchor="middle" class="axis-label">c1</text><line x1="263.00" y1="26" x2="263.00" y2="264" class="grid xgrid" /><text x="263.00" y="286" text-anchor="middle" class="axis-label">c2</text><line x1="454.00" y1="26" x2="454.00" y2="264" class="grid xgrid" /><text x="454.00" y="286" text-anchor="middle" class="axis-label">c4</text><line x1="645.00" y1="26" x2="645.00" y2="264" class="grid xgrid" /><text x="645.00" y="286" text-anchor="middle" class="axis-label">c8</text><line x1="836.00" y1="26" x2="836.00" y2="264" class="grid xgrid" /><text x="836.00" y="286" text-anchor="middle" class="axis-label">c16</text>
+        <line x1="72" y1="264" x2="836" y2="264" class="axis" />
+        <line x1="72" y1="26" x2="72" y2="264" class="axis" />
+        <path d="M 72.00 116.15 L 263.00 115.67 L 454.00 114.64 L 645.00 113.10 L 836.00 109.91" fill="none" stroke="#1f4b99" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 44.51 L 263.00 44.51 L 454.00 44.51 L 645.00 44.14 L 836.00 43.63" fill="none" stroke="#d55c00" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 44.51 L 263.00 44.51 L 454.00 44.51 L 645.00 44.14 L 836.00 43.63" fill="none" stroke="#16803c" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 69.40 L 263.00 69.40 L 454.00 69.40 L 645.00 69.40 L 836.00 69.40" fill="none" stroke="#7a2ea8" stroke-width="3" stroke-linecap="round" />
+        <circle cx="72.00" cy="116.15" r="4" fill="#1f4b99"><title>HF baseline c1: 14151</title></circle><circle cx="263.00" cy="115.67" r="4" fill="#1f4b99"><title>HF baseline c2: 14197</title></circle><circle cx="454.00" cy="114.64" r="4" fill="#1f4b99"><title>HF baseline c4: 14296</title></circle><circle cx="645.00" cy="113.10" r="4" fill="#1f4b99"><title>HF baseline c8: 14444</title></circle><circle cx="836.00" cy="109.91" r="4" fill="#1f4b99"><title>HF baseline c16: 14748</title></circle><circle cx="72.00" cy="44.51" r="4" fill="#d55c00"><title>vLLM bf16 c1: 21008</title></circle><circle cx="263.00" cy="44.51" r="4" fill="#d55c00"><title>vLLM bf16 c2: 21008</title></circle><circle cx="454.00" cy="44.51" r="4" fill="#d55c00"><title>vLLM bf16 c4: 21008</title></circle><circle cx="645.00" cy="44.14" r="4" fill="#d55c00"><title>vLLM bf16 c8: 21044</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#d55c00"><title>vLLM bf16 c16: 21092</title></circle><circle cx="72.00" cy="44.51" r="4" fill="#16803c"><title>vLLM + APC c1: 21008</title></circle><circle cx="263.00" cy="44.51" r="4" fill="#16803c"><title>vLLM + APC c2: 21008</title></circle><circle cx="454.00" cy="44.51" r="4" fill="#16803c"><title>vLLM + APC c4: 21008</title></circle><circle cx="645.00" cy="44.14" r="4" fill="#16803c"><title>vLLM + APC c8: 21044</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#16803c"><title>vLLM + APC c16: 21092</title></circle><circle cx="72.00" cy="69.40" r="4" fill="#7a2ea8"><title>vLLM int4 c1: 18626</title></circle><circle cx="263.00" cy="69.40" r="4" fill="#7a2ea8"><title>vLLM int4 c2: 18626</title></circle><circle cx="454.00" cy="69.40" r="4" fill="#7a2ea8"><title>vLLM int4 c4: 18626</title></circle><circle cx="645.00" cy="69.40" r="4" fill="#7a2ea8"><title>vLLM int4 c8: 18626</title></circle><circle cx="836.00" cy="69.40" r="4" fill="#7a2ea8"><title>vLLM int4 c16: 18626</title></circle>
+      </svg>
+    </section>
+    
+    <section class="chart-section">
+      <div class="chart-header">
+        <h3>Peak GPU memory used vs concurrency</h3>
+        <div class="legend"><div class="legend-item"><span class="legend-swatch" style="background:#1f4b99"></span>HF baseline</div><div class="legend-item"><span class="legend-swatch" style="background:#d55c00"></span>vLLM bf16</div><div class="legend-item"><span class="legend-swatch" style="background:#16803c"></span>vLLM + APC</div><div class="legend-item"><span class="legend-swatch" style="background:#7a2ea8"></span>vLLM int4</div></div>
+      </div>
+      <svg viewBox="0 0 860 320" class="chart" role="img" aria-label="Peak GPU memory used vs concurrency">
+        <text x="430.00" y="18" text-anchor="middle" class="chart-title">Peak GPU memory used vs concurrency</text>
+        <text x="18" y="160.00" transform="rotate(-90 18 160.00)" class="axis-label">MiB</text>
+        <line x1="72" y1="264.00" x2="836" y2="264.00" class="grid" /><text x="62" y="268.00" text-anchor="end" class="axis-label">0</text><line x1="72" y1="204.50" x2="836" y2="204.50" class="grid" /><text x="62" y="208.50" text-anchor="end" class="axis-label">5696</text><line x1="72" y1="145.00" x2="836" y2="145.00" class="grid" /><text x="62" y="149.00" text-anchor="end" class="axis-label">11392</text><line x1="72" y1="85.50" x2="836" y2="85.50" class="grid" /><text x="62" y="89.50" text-anchor="end" class="axis-label">17088</text><line x1="72" y1="26.00" x2="836" y2="26.00" class="grid" /><text x="62" y="30.00" text-anchor="end" class="axis-label">22784</text>
+        <line x1="72.00" y1="26" x2="72.00" y2="264" class="grid xgrid" /><text x="72.00" y="286" text-anchor="middle" class="axis-label">c1</text><line x1="263.00" y1="26" x2="263.00" y2="264" class="grid xgrid" /><text x="263.00" y="286" text-anchor="middle" class="axis-label">c2</text><line x1="454.00" y1="26" x2="454.00" y2="264" class="grid xgrid" /><text x="454.00" y="286" text-anchor="middle" class="axis-label">c4</text><line x1="645.00" y1="26" x2="645.00" y2="264" class="grid xgrid" /><text x="645.00" y="286" text-anchor="middle" class="axis-label">c8</text><line x1="836.00" y1="26" x2="836.00" y2="264" class="grid xgrid" /><text x="836.00" y="286" text-anchor="middle" class="axis-label">c16</text>
+        <line x1="72" y1="264" x2="836" y2="264" class="axis" />
+        <line x1="72" y1="26" x2="72" y2="264" class="axis" />
+        <path d="M 72.00 115.96 L 263.00 115.48 L 454.00 114.37 L 645.00 112.74 L 836.00 109.84" fill="none" stroke="#1f4b99" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 44.55 L 263.00 44.55 L 454.00 44.55 L 645.00 44.15 L 836.00 43.63" fill="none" stroke="#d55c00" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 44.55 L 263.00 44.55 L 454.00 44.55 L 645.00 44.15 L 836.00 43.63" fill="none" stroke="#16803c" stroke-width="3" stroke-linecap="round" /><path d="M 72.00 69.43 L 263.00 69.43 L 454.00 69.43 L 645.00 69.43 L 836.00 69.43" fill="none" stroke="#7a2ea8" stroke-width="3" stroke-linecap="round" />
+        <circle cx="72.00" cy="115.96" r="4" fill="#1f4b99"><title>HF baseline c1: 14172</title></circle><circle cx="263.00" cy="115.48" r="4" fill="#1f4b99"><title>HF baseline c2: 14218</title></circle><circle cx="454.00" cy="114.37" r="4" fill="#1f4b99"><title>HF baseline c4: 14324</title></circle><circle cx="645.00" cy="112.74" r="4" fill="#1f4b99"><title>HF baseline c8: 14480</title></circle><circle cx="836.00" cy="109.84" r="4" fill="#1f4b99"><title>HF baseline c16: 14758</title></circle><circle cx="72.00" cy="44.55" r="4" fill="#d55c00"><title>vLLM bf16 c1: 21008</title></circle><circle cx="263.00" cy="44.55" r="4" fill="#d55c00"><title>vLLM bf16 c2: 21008</title></circle><circle cx="454.00" cy="44.55" r="4" fill="#d55c00"><title>vLLM bf16 c4: 21008</title></circle><circle cx="645.00" cy="44.15" r="4" fill="#d55c00"><title>vLLM bf16 c8: 21046</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#d55c00"><title>vLLM bf16 c16: 21096</title></circle><circle cx="72.00" cy="44.55" r="4" fill="#16803c"><title>vLLM + APC c1: 21008</title></circle><circle cx="263.00" cy="44.55" r="4" fill="#16803c"><title>vLLM + APC c2: 21008</title></circle><circle cx="454.00" cy="44.55" r="4" fill="#16803c"><title>vLLM + APC c4: 21008</title></circle><circle cx="645.00" cy="44.15" r="4" fill="#16803c"><title>vLLM + APC c8: 21046</title></circle><circle cx="836.00" cy="43.63" r="4" fill="#16803c"><title>vLLM + APC c16: 21096</title></circle><circle cx="72.00" cy="69.43" r="4" fill="#7a2ea8"><title>vLLM int4 c1: 18626</title></circle><circle cx="263.00" cy="69.43" r="4" fill="#7a2ea8"><title>vLLM int4 c2: 18626</title></circle><circle cx="454.00" cy="69.43" r="4" fill="#7a2ea8"><title>vLLM int4 c4: 18626</title></circle><circle cx="645.00" cy="69.43" r="4" fill="#7a2ea8"><title>vLLM int4 c8: 18626</title></circle><circle cx="836.00" cy="69.43" r="4" fill="#7a2ea8"><title>vLLM int4 c16: 18626</title></circle>
+      </svg>
+    </section>
+    
+    
+    <section>
+      <h3>Normalized Results Table</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Backend</th><th>Concurrency</th><th>Throughput</th><th>Latency avg</th><th>Latency p50</th><th>Latency p95</th><th>Latency p99</th><th>TTFT avg</th><th>Accuracy valid-only</th><th>Accuracy overall</th><th>Invalid preds</th><th>GPU util avg</th><th>GPU util max</th><th>GPU mem util avg</th><th>GPU mem avg</th><th>GPU mem max</th></tr></thead>
+          <tbody><tr><td>HF baseline</td><td>c1</td><td>4.42</td><td>0.226</td><td>0.155</td><td>0.515</td><td>0.525</td><td>0.082</td><td>78.2%</td><td>77.2%</td><td>13</td><td>92.7</td><td>98.0</td><td>97.6</td><td>14151</td><td>14172</td></tr><tr><td>HF baseline</td><td>c2</td><td>4.54</td><td>0.440</td><td>0.296</td><td>1.021</td><td>1.047</td><td>0.148</td><td>78.2%</td><td>77.2%</td><td>13</td><td>95.3</td><td>100.0</td><td>99.1</td><td>14197</td><td>14218</td></tr><tr><td>HF baseline</td><td>c4</td><td>4.33</td><td>0.923</td><td>0.603</td><td>2.209</td><td>2.268</td><td>0.301</td><td>78.2%</td><td>77.2%</td><td>13</td><td>91.0</td><td>100.0</td><td>97.5</td><td>14296</td><td>14324</td></tr><tr><td>HF baseline</td><td>c8</td><td>3.01</td><td>2.657</td><td>1.704</td><td>6.411</td><td>6.647</td><td>0.834</td><td>78.2%</td><td>77.2%</td><td>13</td><td>62.2</td><td>98.0</td><td>70.1</td><td>14444</td><td>14480</td></tr><tr><td>HF baseline</td><td>c16</td><td>3.20</td><td>4.974</td><td>3.199</td><td>12.117</td><td>12.478</td><td>1.566</td><td>78.2%</td><td>77.2%</td><td>13</td><td>66.7</td><td>95.0</td><td>74.9</td><td>14748</td><td>14758</td></tr><tr><td>vLLM bf16</td><td>c1</td><td>3.97</td><td>0.252</td><td>0.181</td><td>0.514</td><td>0.517</td><td>0.117</td><td>74.6%</td><td>73.9%</td><td>9</td><td>98.2</td><td>100.0</td><td>99.6</td><td>21008</td><td>21008</td></tr><tr><td>vLLM bf16</td><td>c2</td><td>6.36</td><td>0.314</td><td>0.247</td><td>0.587</td><td>0.606</td><td>0.143</td><td>74.6%</td><td>73.9%</td><td>9</td><td>99.5</td><td>100.0</td><td>99.6</td><td>21008</td><td>21008</td></tr><tr><td>vLLM bf16</td><td>c4</td><td>11.34</td><td>0.352</td><td>0.280</td><td>0.627</td><td>0.667</td><td>0.160</td><td>74.5%</td><td>73.8%</td><td>9</td><td>99.2</td><td>100.0</td><td>98.8</td><td>21008</td><td>21008</td></tr><tr><td>vLLM bf16</td><td>c8</td><td>18.86</td><td>0.422</td><td>0.356</td><td>0.740</td><td>0.803</td><td>0.178</td><td>74.5%</td><td>73.8%</td><td>9</td><td>98.2</td><td>100.0</td><td>91.4</td><td>21044</td><td>21046</td></tr><tr><td>vLLM bf16</td><td>c16</td><td>25.99</td><td>0.611</td><td>0.533</td><td>1.039</td><td>1.224</td><td>0.210</td><td>74.6%</td><td>73.9%</td><td>9</td><td>97.6</td><td>100.0</td><td>79.0</td><td>21092</td><td>21096</td></tr><tr><td>vLLM + APC</td><td>c1</td><td>3.97</td><td>0.252</td><td>0.181</td><td>0.513</td><td>0.517</td><td>0.117</td><td>74.6%</td><td>73.9%</td><td>9</td><td>98.2</td><td>100.0</td><td>99.6</td><td>21008</td><td>21008</td></tr><tr><td>vLLM + APC</td><td>c2</td><td>6.36</td><td>0.314</td><td>0.247</td><td>0.588</td><td>0.605</td><td>0.143</td><td>74.6%</td><td>73.9%</td><td>9</td><td>99.2</td><td>100.0</td><td>99.1</td><td>21008</td><td>21008</td></tr><tr><td>vLLM + APC</td><td>c4</td><td>11.33</td><td>0.352</td><td>0.280</td><td>0.627</td><td>0.669</td><td>0.160</td><td>74.5%</td><td>73.8%</td><td>9</td><td>99.0</td><td>100.0</td><td>98.8</td><td>21008</td><td>21008</td></tr><tr><td>vLLM + APC</td><td>c8</td><td>18.86</td><td>0.422</td><td>0.357</td><td>0.739</td><td>0.807</td><td>0.178</td><td>74.5%</td><td>73.8%</td><td>9</td><td>98.1</td><td>100.0</td><td>91.3</td><td>21044</td><td>21046</td></tr><tr><td>vLLM + APC</td><td>c16</td><td>26.09</td><td>0.609</td><td>0.533</td><td>1.038</td><td>1.222</td><td>0.210</td><td>74.6%</td><td>73.9%</td><td>9</td><td>97.5</td><td>100.0</td><td>77.3</td><td>21092</td><td>21096</td></tr><tr><td>vLLM int4</td><td>c1</td><td>10.85</td><td>0.092</td><td>0.070</td><td>0.166</td><td>0.168</td><td>0.043</td><td>69.3%</td><td>68.9%</td><td>6</td><td>94.1</td><td>100.0</td><td>96.4</td><td>18626</td><td>18626</td></tr><tr><td>vLLM int4</td><td>c2</td><td>21.50</td><td>0.093</td><td>0.068</td><td>0.167</td><td>0.168</td><td>0.042</td><td>69.3%</td><td>68.9%</td><td>6</td><td>97.1</td><td>100.0</td><td>98.0</td><td>18626</td><td>18626</td></tr><tr><td>vLLM int4</td><td>c4</td><td>40.01</td><td>0.099</td><td>0.071</td><td>0.173</td><td>0.175</td><td>0.043</td><td>69.3%</td><td>68.9%</td><td>6</td><td>96.1</td><td>100.0</td><td>96.2</td><td>18626</td><td>18626</td></tr><tr><td>vLLM int4</td><td>c8</td><td>71.99</td><td>0.110</td><td>0.090</td><td>0.187</td><td>0.195</td><td>0.045</td><td>69.3%</td><td>68.9%</td><td>6</td><td>93.2</td><td>100.0</td><td>93.3</td><td>18626</td><td>18626</td></tr><tr><td>vLLM int4</td><td>c16</td><td>112.47</td><td>0.139</td><td>0.122</td><td>0.235</td><td>0.254</td><td>0.049</td><td>69.3%</td><td>68.9%</td><td>6</td><td>89.7</td><td>100.0</td><td>85.2</td><td>18626</td><td>18626</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+    
+  </main>
+</body>
+</html>

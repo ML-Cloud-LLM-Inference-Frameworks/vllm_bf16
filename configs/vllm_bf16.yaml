@@ -10,5 +10,6 @@ max-num-seqs: 16
 max-num-batched-tokens: 4096
 enable-chunked-prefill: true
 gpu-memory-utilization: 0.9
+max-model-len: 2048
 enable-logging-iteration-details: true
 enable-prefix-caching: false

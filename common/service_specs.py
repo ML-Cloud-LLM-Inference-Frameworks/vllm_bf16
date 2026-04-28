@@ -9,6 +9,8 @@ BACKEND_HOST = os.getenv("BACKEND_HOST", "127.0.0.1")
 BACKEND_PORT = int(os.getenv("BACKEND_PORT", "8000"))
 BACKEND_HEALTH_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}/health"
 BACKEND_BASE_URL = f"http://{BACKEND_HOST}:{BACKEND_PORT}/v1"
+DEFAULT_AWQ_MODEL = "solidrust/Mistral-7B-Instruct-v0.3-AWQ"
+DEFAULT_AWQ_SERVED_NAME = "mistral-7b-int4"
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,7 @@ def _vllm_policy(enable_prefix_caching: bool) -> dict[str, Any]:
         "max_num_batched_tokens": 4096,
         "enable_chunked_prefill": True,
         "gpu_memory_utilization": 0.9,
+        "max_model_len": 2048,
         "enable_logging_iteration_details": True,
         "enable_prefix_caching": enable_prefix_caching,
     }
@@ -49,7 +52,7 @@ def _vllm_policy(enable_prefix_caching: bool) -> dict[str, Any]:
 def get_service_specs() -> dict[str, ServiceSpec]:
     hf_model_id = os.getenv("HF_BASELINE_MODEL_ID", MODEL_ID)
     hf_model_path = resolve_hf_baseline_path()
-    awq_model = os.getenv("VLLM_AWQ_MODEL", "").strip()
+    awq_model = os.getenv("VLLM_AWQ_MODEL", "").strip() or DEFAULT_AWQ_MODEL
 
     vllm_bf16_config = str((CONFIG_DIR / "vllm_bf16.yaml").resolve())
     vllm_bf16_apc_config = str((CONFIG_DIR / "vllm_bf16_apc.yaml").resolve())
@@ -62,7 +65,7 @@ def get_service_specs() -> dict[str, ServiceSpec]:
             description="Transformers + PyTorch baseline with one-request-at-a-time generation on the GPU.",
             command=(
                 "uvicorn",
-                "services.hf_baseline.server:app",
+                "services.hf_baseline.server_streaming:app",
                 "--host",
                 "0.0.0.0",
                 "--port",
@@ -80,9 +83,10 @@ def get_service_specs() -> dict[str, ServiceSpec]:
                 "dtype": "bfloat16",
                 "server_side_batching": False,
                 "scheduler": "none",
+                "streaming_api": True,
             },
             launch_notes=(
-                "This backend uses the Hugging Face server in services/hf_baseline/server.py.",
+                "This backend uses the Hugging Face streaming-compatible server in services/hf_baseline/server_streaming.py.",
                 "Unset HF_BASELINE_MODEL_PATH to use the Hub model (common.config.MODEL_ID), or set it to a local snapshot directory.",
             ),
         ),
@@ -110,21 +114,17 @@ def get_service_specs() -> dict[str, ServiceSpec]:
             description="vLLM with an AWQ-quantized checkpoint. Requires a quantized model path or HF repo on the VM.",
             command=("vllm", "serve", awq_model or "SET_VLLM_AWQ_MODEL", "--config", vllm_awq_int4_config),
             config_path=vllm_awq_int4_config,
-            model_id=awq_model or "SET_VLLM_AWQ_MODEL",
+            model_id=os.getenv("VLLM_AWQ_SERVED_NAME", DEFAULT_AWQ_SERVED_NAME),
             server_policy={
                 **_vllm_policy(enable_prefix_caching=False),
                 "dtype": "half",
-                "quantization": "awq",
+                "quantization": "awq_marlin",
             },
-            available=bool(awq_model),
-            unavailable_reason=(
-                None
-                if awq_model
-                else "Set VLLM_AWQ_MODEL on the VM to an AWQ-quantized checkpoint path or Hugging Face repo."
-            ),
+            available=True,
+            unavailable_reason=None,
             launch_notes=(
-                "The checked-in YAML pins the scheduler policy, but the model field is intentionally a placeholder.",
-                "The orchestrator overrides that placeholder with the VLLM_AWQ_MODEL environment variable at launch time.",
+                "By default this launches the public AWQ checkpoint solidrust/Mistral-7B-Instruct-v0.3-AWQ.",
+                "Set VLLM_AWQ_MODEL on the VM to override the checkpoint path or Hugging Face repo.",
             ),
         ),
     }

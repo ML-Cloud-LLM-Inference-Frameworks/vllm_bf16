@@ -113,6 +113,11 @@ textarea#article {
   margin: 0.3rem 0 0.6rem 0;
   font-size: 0.9rem;
 }
+.file-hint {
+  margin: 0.35rem 0 0 0;
+  color: var(--mut);
+  font-size: 0.78rem;
+}
 .checks {
   display: flex;
   flex-direction: column;
@@ -162,6 +167,43 @@ button.primary:disabled {
   font-size: 0.78rem;
   color: #777;
   margin: 0 0 0.25rem 0;
+}
+.status-card {
+  margin-top: 0.2rem;
+}
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin: 0.25rem 0;
+}
+.status-label {
+  min-width: 7rem;
+  color: var(--mut);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.status-badge {
+  display: inline-block;
+  padding: 0.16rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--bord);
+  background: #11141a;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+.status-badge[data-state="ready"] {
+  color: #b9f2bf;
+  border-color: #24592f;
+}
+.status-badge[data-state="starting"] {
+  color: #ffe0a3;
+  border-color: #7f6325;
+}
+.status-badge[data-state="error"] {
+  color: #ffc2c2;
+  border-color: #7e2f2f;
 }
 .results-hint {
   font-size: 0.78rem;

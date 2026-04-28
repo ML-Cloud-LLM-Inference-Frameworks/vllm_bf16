@@ -1,8 +1,9 @@
-"""Sequential multi-config job runner with an async event iterator (in-memory; no job dir on disk)."""
+"""Sequential multi-config UI runner backed by the persistent backend manager."""
 
 from __future__ import annotations
-import json
+
 import asyncio
+import json
 import shutil
 import tempfile
 import time
@@ -12,13 +13,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, AsyncIterator, Literal, Sequence
 
-import httpx
-
-from services.frontend import runner, server_lifecycle
+from services.frontend import runner
 from services.frontend.configs import FRONTEND_CONFIG_ORDER, FrontendConfig, get_frontend_configs
-from services.frontend.server_lifecycle import DEFAULT_HEALTH_URL
+from services.orchestrator import BackendServiceManager
 
 Mode = Literal["text", "jsonl"]
+_BACKEND_MANAGER = BackendServiceManager()
 
 
 class Phase(str, Enum):
@@ -34,6 +34,7 @@ class Job:
     id: str
     mode: Mode
     text: str | None
+    text_inputs: list[dict[str, str]]
     jsonl_path: Path | None
     concurrency: int
     limit: int | None
@@ -55,12 +56,12 @@ class Event:
 def create_job(
     mode: Mode,
     text: str | None,
+    text_inputs: Sequence[dict[str, str]] | None,
     jsonl_path: Path | None,
     config_ids: Sequence[str] | None,
     concurrency: int = 4,
     limit: int | None = None,
 ) -> Job:
-    cids: list[str]
     if not config_ids:
         cids = list(FRONTEND_CONFIG_ORDER)
     else:
@@ -69,6 +70,7 @@ def create_job(
         id=str(uuid.uuid4()),
         mode=mode,
         text=text,
+        text_inputs=[{"name": str(item["name"]), "text": str(item["text"])} for item in (text_inputs or [])],
         jsonl_path=jsonl_path,
         concurrency=max(1, int(concurrency)),
         limit=limit,
@@ -85,6 +87,48 @@ def _get_cfg(name: str) -> FrontendConfig:
     if not c.available:
         raise KeyError(f"{c.name} unavailable: {c.unavailable_reason or 'n/a'}")
     return c
+
+
+def get_backend_manager() -> BackendServiceManager:
+    return _BACKEND_MANAGER
+
+
+def backend_status_snapshot() -> dict[str, Any]:
+    return _BACKEND_MANAGER.status_snapshot()
+
+
+async def shutdown_backend_manager() -> None:
+    await _BACKEND_MANAGER.shutdown()
+
+
+def _log_tail(log_path: str | None, max_lines: int = 80) -> str:
+    if not log_path:
+        return ""
+    p = Path(log_path)
+    if not p.is_file():
+        return ""
+    try:
+        text = p.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    lines = text.splitlines()
+    return "\n".join(lines[-max_lines:])
+
+
+async def _ensure_backend_ready(name: str, cfg: FrontendConfig) -> dict[str, Any]:
+    status = await _BACKEND_MANAGER.schedule_switch(name)
+    if status.get("status") == "ready" and status.get("active_config_name") == name:
+        return status
+    deadline = time.perf_counter() + 1200.0
+    while time.perf_counter() < deadline:
+        status = backend_status_snapshot()
+        if status.get("status") == "ready" and status.get("active_config_name") == name:
+            return status
+        if status.get("status") == "error":
+            raise RuntimeError(str(status.get("message") or f"{cfg.label} failed to start"))
+        await asyncio.sleep(1.0)
+    tail = _log_tail(status.get("log_path"), 200)
+    raise TimeoutError(f"Timed out waiting for {cfg.label} to become ready.\n---\n{tail}")
 
 
 async def run_job(job: Job) -> AsyncIterator[Event]:
@@ -109,17 +153,17 @@ async def run_job(job: Job) -> AsyncIterator[Event]:
                 shutil.copy2(job.jsonl_path, dest)
             input_path = dest
         else:
-            oneline = d / "input_oneline.txt"
-            if job.text and str(job.text).strip():
-                oneline.write_text(job.text, encoding="utf-8")
-            if oneline.exists() and (not job.text or not str(job.text).strip()):
-                job.text = oneline.read_text(encoding="utf-8")
-            if not (job.text and str(job.text).strip()):
-                raise ValueError("text mode: provide article text (app should set job.text or write input_oneline.txt)")
-            oneline.write_text(job.text, encoding="utf-8")
-            input_path = oneline
+            inputs_dir = d / "inputs"
+            inputs_dir.mkdir(parents=True, exist_ok=True)
+            if not job.text_inputs and job.text and str(job.text).strip():
+                job.text_inputs = [{"name": "pasted_text.txt", "text": job.text}]
+            if not job.text_inputs:
+                raise ValueError("text mode: provide article text or upload one or more .txt files")
+            for idx, item in enumerate(job.text_inputs):
+                clean_name = item["name"].replace("/", "_").replace("\\", "_")
+                safe_name = f"{idx:03d}_{clean_name}"
+                (inputs_dir / safe_name).write_text(item["text"], encoding="utf-8")
 
-        openai_base = "http://127.0.0.1:8000/v1"
         for name in job.config_ids:
             if job.cancel_requested:
                 job.errors[name] = "cancelled"
@@ -127,69 +171,79 @@ async def run_job(job: Job) -> AsyncIterator[Event]:
                 break
             try:
                 cfg = _get_cfg(name)
-            except (KeyError, OSError) as e:  # noqa: BLE001
-                job.errors[name] = str(e)
-                yield Event("error", {"id": name, "message": str(e)})
+            except (KeyError, OSError) as exc:  # noqa: BLE001
+                job.errors[name] = str(exc)
+                yield Event("error", {"id": name, "message": str(exc)})
                 continue
             cdir = d / cfg.name
             cdir.mkdir(parents=True, exist_ok=True)
-            sp: server_lifecycle.LaunchedServer | None = None
             try:
-                server_lifecycle.assert_port_free()
-                yield Event("log", {"message": f"── [{cfg.label}] ({name}) — starting subprocess", "config": name, "stage": "start"})
-                yield Event("config", {"id": name, "phase": Phase.launching.value, "label": cfg.label})
-                sp = server_lifecycle.launch(cfg)
-                yield Event(
-                    "config",
-                    {"id": name, "phase": Phase.ready_wait.value, "log_tail": sp.get_log_tail(40), "label": cfg.label},
-                )
-                t_ready0 = time.perf_counter()
-                while time.perf_counter() - t_ready0 < 1200.0:
-                    el = time.perf_counter() - t_ready0
+                pre_status = backend_status_snapshot()
+                reused = pre_status.get("status") == "ready" and pre_status.get("active_config_name") == name
+                if reused:
                     yield Event(
                         "log",
                         {
-                            "message": f"[{name}] waiting for /health ({el:.0f}s) — subprocess log (tail):",
+                            "message": f"[{name}] reusing the already-running backend on the VM.",
                             "config": name,
                             "label": cfg.label,
-                            "stage": "ready_wait",
-                            "elapsed_s": round(el, 1),
-                            "log_tail": sp.get_log_tail(100),
+                            "stage": "reuse",
                         },
                     )
-                    try:
-                        async with httpx.AsyncClient() as ac:
-                            r = await ac.get(DEFAULT_HEALTH_URL, timeout=4.0)
-                    except (httpx.RequestError, OSError):  # noqa: BLE001
-                        await asyncio.sleep(1.2)
-                        continue
-                    if r is not None and r.status_code < 500:
-                        break
-                    await asyncio.sleep(1.2)
                 else:
-                    tail = sp.get_log_tail(200)
-                    err = f"ready timeout 1200s\n---\n{tail}"
-                    job.errors[name] = err
-                    yield Event("error", {"id": name, "message": "ready timeout", "detail": err})
-                    if sp:
-                        server_lifecycle.shutdown(sp)
-                    sp = None
-                if sp is None:
-                    continue
+                    yield Event(
+                        "log",
+                        {
+                            "message": f"-- [{cfg.label}] ({name}) - starting backend on the VM",
+                            "config": name,
+                            "stage": "start",
+                        },
+                    )
+                    yield Event("config", {"id": name, "phase": Phase.launching.value, "label": cfg.label})
+                yield Event("config", {"id": name, "phase": Phase.ready_wait.value, "label": cfg.label})
+                if not reused:
+                    ready_task = asyncio.create_task(_ensure_backend_ready(name, cfg))
+                    t_ready0 = time.perf_counter()
+                    while not ready_task.done():
+                        await asyncio.wait({ready_task}, timeout=1.2)
+                        if ready_task.done():
+                            break
+                        status = backend_status_snapshot()
+                        elapsed = time.perf_counter() - t_ready0
+                        yield Event(
+                            "log",
+                            {
+                                "message": f"[{name}] waiting for backend readiness ({elapsed:.0f}s) - {status.get('message', 'starting')}",
+                                "config": name,
+                                "label": cfg.label,
+                                "stage": "ready_wait",
+                                "elapsed_s": round(elapsed, 1),
+                                "log_tail": _log_tail(status.get("log_path"), 80),
+                            },
+                        )
+                    ready_status = await ready_task
+                else:
+                    ready_status = backend_status_snapshot()
+                openai_base = str(ready_status.get("base_url") or "http://127.0.0.1:8000/v1")
                 yield Event(
                     "log",
-                    {"message": f"[{name}] healthy — running inference…", "config": name, "label": cfg.label, "stage": "healthy"},
+                    {"message": f"[{name}] healthy - running inference...", "config": name, "label": cfg.label, "stage": "healthy"},
                 )
                 await asyncio.sleep(0.05)
                 yield Event(
                     "config",
-                    {"id": name, "phase": Phase.running.value, "log_tail": sp.get_log_tail(20), "label": cfg.label},
+                    {
+                        "id": name,
+                        "phase": Phase.running.value,
+                        "log_tail": _log_tail(ready_status.get("log_path"), 20),
+                        "label": cfg.label,
+                    },
                 )
                 if job.mode == "jsonl" and input_path and input_path.suffix == ".jsonl":
                     yield Event(
                         "log",
                         {
-                            "message": f"[{name}] JSONL benchmark (can take a while)… concurrency {job.concurrency} warmup=10",
+                            "message": f"[{name}] JSONL benchmark (can take a while)... concurrency {job.concurrency} warmup=10",
                             "config": name,
                             "stage": "run_jsonl",
                         },
@@ -213,37 +267,50 @@ async def run_job(job: Job) -> AsyncIterator[Event]:
                         yield Event(
                             "log",
                             {
-                                "message": f"[{name}] benchmark still running ({time.perf_counter() - t_run:.0f}s)…",
+                                "message": f"[{name}] benchmark still running ({time.perf_counter() - t_run:.0f}s)...",
                                 "config": name,
                                 "label": cfg.label,
                                 "stage": "jsonl_bench",
                                 "elapsed_s": round(time.perf_counter() - t_run, 1),
-                                "log_tail": sp.get_log_tail(40) if sp else "",
+                                "log_tail": _log_tail(ready_status.get("log_path"), 40),
                             },
                         )
                     res = await bench_task
                 else:
-                    tw = d / "input_oneline.txt"
-                    text = job.text or (tw.read_text(encoding="utf-8") if tw.exists() else "")
-                    if not (text and text.strip()) and (input_path and (not str(input_path).endswith((".jsonl",)))) and input_path.is_file():
-                        text = input_path.read_text(encoding="utf-8")
-                    if not (text and text.strip()):
-                        raise ValueError("no input text: paste text, upload a .txt, or .jsonl for article mode")
-                    yield Event("log", {"message": f"[{name}] single article — streaming request…", "config": name, "stage": "run_text"})
-                    res = await runner.run_single_text_bench(cfg, openai_base, text, cdir)
+                    yield Event(
+                        "log",
+                        {
+                            "message": f"[{name}] running {len(job.text_inputs)} text input(s) with concurrency {job.concurrency}...",
+                            "config": name,
+                            "stage": "run_text",
+                        },
+                    )
+                    res = await runner.run_text_batch(
+                        cfg,
+                        openai_base,
+                        job.text_inputs,
+                        cdir,
+                        concurrency=job.concurrency,
+                    )
                 job.results[name] = res
                 yield Event("config", {"id": name, "phase": Phase.done.value, "summary": res, "label": cfg.label})
-            except Exception as e:  # noqa: BLE001
-                err = f"{type(e).__name__}: {e!s}"
-                if sp:
-                    err = f"{err}\n---\n{sp.get_log_tail(200)}"
+            except Exception as exc:  # noqa: BLE001
+                err = f"{type(exc).__name__}: {exc!s}"
+                status = backend_status_snapshot()
+                tail = _log_tail(status.get("log_path"), 200)
+                if tail:
+                    err = f"{err}\n---\n{tail}"
                 job.errors[name] = err
                 yield Event("error", {"id": name, "message": err})
-            finally:
-                if sp is not None:
-                    server_lifecycle.shutdown(sp)
             await asyncio.sleep(0.15)
-            yield Event("log", {"message": f"── done [{name}], closed subprocess on :8000", "config": name, "stage": "teardown"})
+            yield Event(
+                "log",
+                {
+                    "message": f"-- done [{name}], backend remains available for reuse on :8000",
+                    "config": name,
+                    "stage": "teardown",
+                },
+            )
 
         yield Event(
             "job",

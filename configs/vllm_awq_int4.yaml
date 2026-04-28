@@ -1,15 +1,17 @@
-model: SET_VLLM_AWQ_MODEL
+model: solidrust/Mistral-7B-Instruct-v0.3-AWQ
 host: "0.0.0.0"
 port: 8000
 api-key: "dummy"
+served-model-name: "mistral-7b-int4"
 
 dtype: half
-quantization: awq
+quantization: awq_marlin
 generation-config: "vllm"
 scheduling-policy: "fcfs"
 max-num-seqs: 16
 max-num-batched-tokens: 4096
 enable-chunked-prefill: true
 gpu-memory-utilization: 0.9
+max-model-len: 2048
 enable-logging-iteration-details: true
 enable-prefix-caching: false
