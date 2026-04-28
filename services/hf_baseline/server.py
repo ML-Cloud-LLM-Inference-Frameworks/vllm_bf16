@@ -40,7 +40,7 @@ print("loading model...")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_PATH,
-    dtype=resolve_dtype(DTYPE_NAME),
+    torch_dtype=resolve_dtype(DTYPE_NAME),
     device_map="auto",
 )
 model.eval()
@@ -52,7 +52,7 @@ class Message(BaseModel):
     content: str
 
 class ChatRequest(BaseModel):
-    model: str = MODEL_ID
+    model: str = SERVE_MODEL_ID
     messages: list[Message]
     temperature: float = 0.0
     max_tokens: int = MAX_TOKENS
