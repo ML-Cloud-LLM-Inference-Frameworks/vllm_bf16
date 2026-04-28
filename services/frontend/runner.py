@@ -138,6 +138,7 @@ async def run_jsonl_bench(
         nvidia_smi_interval=1.0,
         prometheus_samples=bool(config.has_prometheus),
         prometheus_poll_interval=0.5,
+        pred_output=None,
     )
     source_rows = load_jsonl(jsonl_path, limit=limit)
     rows, has_labels = _normalize_benchmark_rows(source_rows)
