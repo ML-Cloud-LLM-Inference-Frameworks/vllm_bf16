@@ -31,8 +31,16 @@ HOST="${HF_BASELINE_HOST:-0.0.0.0}"
 PORT="${HF_BASELINE_PORT:-8000}"
 MODEL_HUB="${HF_BASELINE_MODEL_ID:-mistralai/Mistral-7B-Instruct-v0.3}"
 export HF_BASELINE_MODEL_PATH="${HF_BASELINE_MODEL_PATH:-}"
-if [ -z "$HF_BASELINE_MODEL_PATH" ] && [ -d /home/sgcjin/mistral_models/7B-Instruct-v0.3 ]; then
-  export HF_BASELINE_MODEL_PATH="/home/sgcjin/mistral_models/7B-Instruct-v0.3"
+DEFAULT_LOCAL_HF_PATH="/home/sgcjin/mistral_models/7B-Instruct-v0.3"
+if [ -z "$HF_BASELINE_MODEL_PATH" ] && [ -d "$DEFAULT_LOCAL_HF_PATH" ]; then
+  if [ -f "$DEFAULT_LOCAL_HF_PATH/config.json" ] && \
+     { [ -f "$DEFAULT_LOCAL_HF_PATH/model.safetensors.index.json" ] || \
+       compgen -G "$DEFAULT_LOCAL_HF_PATH/*.safetensors" > /dev/null || \
+       compgen -G "$DEFAULT_LOCAL_HF_PATH/*.bin" > /dev/null; }; then
+    export HF_BASELINE_MODEL_PATH="$DEFAULT_LOCAL_HF_PATH"
+  else
+    echo "[hf_baseline] Skipping incomplete local checkpoint at $DEFAULT_LOCAL_HF_PATH; falling back to Hub model $MODEL_HUB" >&2
+  fi
 fi
 export HF_BASELINE_CONFIG_NAME="${HF_BASELINE_CONFIG_NAME:-hf_baseline_bf16}"
 
