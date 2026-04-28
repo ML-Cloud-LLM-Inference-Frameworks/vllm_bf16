@@ -58,7 +58,7 @@ case "${1:-}" in
       --served-model-name "$SERVED_NAME" \
       --host "$HOST" \
       --port "$PORT" \
-      --quantization awq \
+      --quantization awq_marlin \
       --dtype float16 \
       --max-model-len 2048 \
       --gpu-memory-utilization "$GPU_MEM"
