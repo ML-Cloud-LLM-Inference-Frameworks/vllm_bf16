@@ -10,10 +10,10 @@ from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from common.config import MAX_TOKENS, MODEL_ID, PROMPT_PATH
+from common.config import MAX_TOKENS, MODEL_ID, PROMPT_PATH, resolve_hf_baseline_path
 from common.parser import parse_label
 
-MODEL_PATH = os.getenv("HF_BASELINE_MODEL_PATH", "/home/hl3945/mistral-7b")
+MODEL_PATH = resolve_hf_baseline_path()
 SERVE_MODEL_ID = os.getenv("HF_BASELINE_MODEL_ID", MODEL_ID)
 CONFIG_NAME = os.getenv("HF_BASELINE_CONFIG_NAME", "hf_baseline_bf16")
 DTYPE_NAME = os.getenv("HF_BASELINE_DTYPE", "bfloat16").lower()
