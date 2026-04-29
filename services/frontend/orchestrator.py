@@ -15,10 +15,37 @@ from typing import Any, AsyncIterator, Literal, Sequence
 
 from services.frontend import runner
 from services.frontend.configs import FRONTEND_CONFIG_ORDER, FrontendConfig, get_frontend_configs
+from common.service_specs import ServiceSpec, get_service_specs
 from services.orchestrator import BackendServiceManager
 
 Mode = Literal["text", "jsonl"]
-_BACKEND_MANAGER = BackendServiceManager()
+
+
+def _frontend_service_specs() -> dict[str, ServiceSpec]:
+    base_specs = get_service_specs()
+    frontend_specs = get_frontend_configs()
+    merged: dict[str, ServiceSpec] = {}
+    for name, frontend_cfg in frontend_specs.items():
+        base = base_specs[name]
+        merged[name] = ServiceSpec(
+            name=base.name,
+            label=base.label,
+            description=base.description,
+            command=frontend_cfg.command,
+            env=dict(frontend_cfg.env),
+            config_path=frontend_cfg.config_path,
+            model_id=frontend_cfg.openai_model_id,
+            base_url=base.base_url,
+            health_url=base.health_url,
+            server_policy=dict(base.server_policy),
+            launch_notes=base.launch_notes,
+            available=frontend_cfg.available,
+            unavailable_reason=frontend_cfg.unavailable_reason,
+        )
+    return merged
+
+
+_BACKEND_MANAGER = BackendServiceManager(specs_getter=_frontend_service_specs)
 
 
 class Phase(str, Enum):

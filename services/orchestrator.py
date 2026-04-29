@@ -12,6 +12,8 @@ from urllib.parse import urlsplit
 import httpx
 
 from common.config import LOG_DIR
+from collections.abc import Callable
+
 from common.service_specs import ServiceSpec, get_orchestrator_cwd, get_service_spec, get_service_specs
 
 
@@ -33,9 +35,15 @@ def _health_url_host_port(url: str) -> tuple[str, int]:
 
 
 class BackendServiceManager:
-    def __init__(self, startup_timeout_s: int = 600, health_poll_interval_s: float = 1.0):
+    def __init__(
+        self,
+        startup_timeout_s: int = 600,
+        health_poll_interval_s: float = 1.0,
+        specs_getter: Callable[[], dict[str, ServiceSpec]] | None = None,
+    ):
         self.startup_timeout_s = startup_timeout_s
         self.health_poll_interval_s = health_poll_interval_s
+        self._specs_getter = specs_getter
         self._lock = asyncio.Lock()
         self._status = "idle"
         self._message = "No backend service is running."
@@ -49,9 +57,21 @@ class BackendServiceManager:
         self._switch_task: asyncio.Task | None = None
         self._monitor_task: asyncio.Task | None = None
 
+    def _get_specs(self) -> dict[str, ServiceSpec]:
+        if self._specs_getter is not None:
+            return self._specs_getter()
+        return get_service_specs()
+
+    def _get_spec(self, name: str) -> ServiceSpec:
+        specs = self._get_specs()
+        if name not in specs:
+            choices = ", ".join(sorted(specs))
+            raise KeyError(f"Unknown service '{name}'. Available services: {choices}")
+        return specs[name]
+
     def list_service_specs(self) -> list[dict]:
         payload = []
-        for spec in get_service_specs().values():
+        for spec in self._get_specs().values():
             payload.append(
                 {
                     "name": spec.name,
@@ -72,7 +92,7 @@ class BackendServiceManager:
 
     def status_snapshot(self) -> dict:
         process = self._process
-        spec = get_service_specs().get(self._active_service_name) if self._active_service_name else None
+        spec = self._get_specs().get(self._active_service_name) if self._active_service_name else None
         return {
             "status": self._status,
             "message": self._message,
@@ -88,7 +108,7 @@ class BackendServiceManager:
         }
 
     async def schedule_switch(self, service_name: str) -> dict:
-        spec = get_service_spec(service_name)
+        spec = self._get_spec(service_name)
         if not spec.available:
             raise ValueError(spec.unavailable_reason or f"Service '{service_name}' is not available.")
         if self._switch_task and not self._switch_task.done():
@@ -146,7 +166,7 @@ class BackendServiceManager:
     def get_ready_target(self) -> ServiceSpec:
         if self._status != "ready" or self._active_service_name is None:
             raise RuntimeError("No backend is ready. Select a configuration and wait for it to become ready.")
-        spec = get_service_spec(self._active_service_name)
+        spec = self._get_spec(self._active_service_name)
         process = self._process
         if process is None or process.poll() is not None:
             raise RuntimeError("The active backend process is no longer running.")
@@ -154,7 +174,7 @@ class BackendServiceManager:
 
     async def _switch_to(self, service_name: str) -> None:
         try:
-            spec = get_service_spec(service_name)
+            spec = self._get_spec(service_name)
             async with self._lock:
                 await self._terminate_process_locked()
                 await self._start_process_locked(spec)

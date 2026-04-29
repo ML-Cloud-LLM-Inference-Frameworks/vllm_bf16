@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from common.config import MODEL_ID
 from services.frontend.configs import get_frontend_configs
+from services.frontend.orchestrator import _frontend_service_specs
 
 
 class FrontendConfigsTest(unittest.TestCase):
@@ -32,6 +33,23 @@ class FrontendConfigsTest(unittest.TestCase):
         self.assertEqual(bf16.env["VLLM_MODEL_PATH"], MODEL_ID)
         self.assertEqual(apc.env["VLLM_MODEL_PATH"], MODEL_ID)
         self.assertNotEqual(int4.command[2], MODEL_ID)
+
+    def test_ui_backend_manager_launch_specs_use_frontend_overrides(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "FRONTEND_BASE_MODEL_SOURCE": MODEL_ID,
+                "HF_BASELINE_MODEL_PATH": "/should/not/win",
+                "VLLM_MODEL_PATH": "/should/not/win",
+            },
+            clear=False,
+        ):
+            specs = _frontend_service_specs()
+
+        self.assertEqual(specs["hf_baseline_bf16"].env["HF_BASELINE_MODEL_PATH"], MODEL_ID)
+        self.assertEqual(specs["vllm_bf16"].command[2], MODEL_ID)
+        self.assertEqual(specs["vllm_bf16_apc"].command[2], MODEL_ID)
+        self.assertNotEqual(specs["vllm_awq_int4"].command[2], MODEL_ID)
 
 
 if __name__ == "__main__":
