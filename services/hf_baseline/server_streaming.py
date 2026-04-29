@@ -18,10 +18,12 @@ from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from common.config import MAX_TOKENS, MODEL_ID, PROMPT_PATH, resolve_hf_baseline_path
+from common.config import MAX_TOKENS, MODEL_ID, PROMPT_PATH, prepare_hf_local_model_path, resolve_hf_baseline_path
 from common.parser import parse_label
 
 MODEL_PATH = resolve_hf_baseline_path()
+MODEL_PREP = prepare_hf_local_model_path(MODEL_PATH)
+MODEL_LOAD_PATH = str(MODEL_PREP["prepared_path"])
 SERVE_MODEL_ID = os.getenv("HF_BASELINE_MODEL_ID", MODEL_ID)
 CONFIG_NAME = os.getenv("HF_BASELINE_CONFIG_NAME", "hf_baseline_bf16")
 PROMPT_TEMPLATE = PROMPT_PATH.read_text(encoding="utf-8")
@@ -38,10 +40,12 @@ def _resolve_dtype(n: str):
 
 
 print("loading model (server_streaming)...")
-_tok = AutoTokenizer.from_pretrained(MODEL_PATH)
+if MODEL_PREP["prepared_is_temp"]:
+    print(f"[hf_baseline] {MODEL_PREP['reason']}: {MODEL_LOAD_PATH}", file=sys.stderr)
+_tok = AutoTokenizer.from_pretrained(MODEL_LOAD_PATH)
 _llm = AutoModelForCausalLM.from_pretrained(
-    MODEL_PATH,
-    torch_dtype=_resolve_dtype(os.environ.get("HF_BASELINE_DTYPE", "bfloat16")),
+    MODEL_LOAD_PATH,
+    dtype=_resolve_dtype(os.environ.get("HF_BASELINE_DTYPE", "bfloat16")),
     device_map="auto",
 )
 _llm.eval()

@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from common.config import inspect_local_model_dir, select_preferred_model_source
+from common.config import inspect_local_model_dir, prepare_hf_local_model_path, select_preferred_model_source
 
 
 def _create_complete_local_model(root: Path) -> None:
@@ -56,6 +56,34 @@ class ModelSourceResolutionTest(unittest.TestCase):
             self.assertEqual(hf["selected_source"], str(root))
             self.assertEqual(vllm["selected_source"], str(root))
             self.assertEqual(hf["selected_client_model_id"], vllm["selected_client_model_id"])
+
+    def test_prepare_hf_local_model_path_materializes_missing_shard_names(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "config.json").write_text("{}", encoding="utf-8")
+            (root / "tokenizer_config.json").write_text("{}", encoding="utf-8")
+            (root / "tokenizer.json").write_text("{}", encoding="utf-8")
+            (root / "special_tokens_map.json").write_text("{}", encoding="utf-8")
+            (root / "generation_config.json").write_text("{}", encoding="utf-8")
+            (root / "consolidated.safetensors").write_bytes(b"fake")
+            (root / "model.safetensors.index.json").write_text(
+                '{"weight_map":{"a":"model-00001-of-00003.safetensors","b":"model-00002-of-00003.safetensors"}}',
+                encoding="utf-8",
+            )
+
+            inspection = inspect_local_model_dir(str(root))
+            self.assertEqual(
+                inspection["missing_safetensors_index_files"],
+                ["model-00001-of-00003.safetensors", "model-00002-of-00003.safetensors"],
+            )
+            self.assertTrue(inspection["hf_shard_link_compatible"])
+
+            prepared = prepare_hf_local_model_path(str(root))
+            self.assertTrue(prepared["prepared_is_temp"])
+            compat = Path(str(prepared["prepared_path"]))
+            self.assertTrue((compat / "model-00001-of-00003.safetensors").exists())
+            self.assertTrue((compat / "model-00002-of-00003.safetensors").exists())
+            self.assertTrue((compat / "consolidated.safetensors").exists())
 
 
 if __name__ == "__main__":

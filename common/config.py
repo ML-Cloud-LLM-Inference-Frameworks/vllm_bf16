@@ -1,5 +1,8 @@
 import os
 import sys
+import json
+import shutil
+import tempfile
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -60,9 +63,22 @@ def inspect_local_model_dir(raw_path: str | os.PathLike[str]) -> dict[str, objec
     has_generation_config = (path / "generation_config.json").is_file()
     has_safetensors_index = (path / "model.safetensors.index.json").is_file()
     has_bin_index = (path / "pytorch_model.bin.index.json").is_file()
+    safetensors_index_files: list[str] = []
+    missing_safetensors_index_files: list[str] = []
+    if has_safetensors_index:
+        try:
+            payload = json.loads((path / "model.safetensors.index.json").read_text(encoding="utf-8"))
+            safetensors_index_files = sorted(set(payload.get("weight_map", {}).values()))
+            missing_safetensors_index_files = [
+                name for name in safetensors_index_files if not (path / name).is_file()
+            ]
+        except Exception:
+            missing_safetensors_index_files = ["<unreadable-index>"]
     has_tokenizer_assets = bool(tokenizer_files) and has_tokenizer_config
     has_weight_assets = has_safetensors_index or has_bin_index or bool(safetensors_files) or bool(bin_files)
     complete = path.is_dir() and has_config and has_tokenizer_assets and has_weight_assets
+    has_consolidated_safetensors = "consolidated.safetensors" in safetensors_files
+    hf_shard_link_compatible = bool(missing_safetensors_index_files) and has_consolidated_safetensors
 
     missing_core = []
     if not has_config:
@@ -86,10 +102,55 @@ def inspect_local_model_dir(raw_path: str | os.PathLike[str]) -> dict[str, objec
         "tokenizer_files": tokenizer_files,
         "has_safetensors_index": has_safetensors_index,
         "has_bin_index": has_bin_index,
+        "safetensors_index_files": safetensors_index_files,
+        "missing_safetensors_index_files": missing_safetensors_index_files,
         "safetensors_files": safetensors_files,
         "bin_files": bin_files,
+        "has_consolidated_safetensors": has_consolidated_safetensors,
+        "hf_shard_link_compatible": hf_shard_link_compatible,
         "complete_for_local_serving": complete,
         "missing_core": missing_core,
+    }
+
+
+def _link_or_copy(src: Path, dst: Path) -> None:
+    try:
+        os.symlink(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
+
+
+def prepare_hf_local_model_path(raw_path: str | os.PathLike[str]) -> dict[str, object]:
+    inspection = inspect_local_model_dir(raw_path)
+    resolved = str(inspection["resolved_path"])
+    if not inspection["hf_shard_link_compatible"]:
+        return {
+            "prepared_path": resolved,
+            "prepared_is_temp": False,
+            "reason": "local directory already directly loadable or not eligible for shard-link compatibility",
+            "inspection": inspection,
+        }
+
+    source_root = Path(resolved)
+    compat_root = Path(tempfile.mkdtemp(prefix="hf_model_compat_"))
+    for candidate in source_root.iterdir():
+        target = compat_root / candidate.name
+        if candidate.is_file():
+            _link_or_copy(candidate, target)
+        elif candidate.is_dir():
+            shutil.copytree(candidate, target, symlinks=True)
+
+    consolidated = source_root / "consolidated.safetensors"
+    for missing_name in inspection["missing_safetensors_index_files"]:
+        target = compat_root / str(missing_name)
+        if not target.exists():
+            _link_or_copy(consolidated, target)
+
+    return {
+        "prepared_path": str(compat_root),
+        "prepared_is_temp": True,
+        "reason": "created a temporary HF-compatible shard view from consolidated.safetensors",
+        "inspection": inspection,
     }
 
 
