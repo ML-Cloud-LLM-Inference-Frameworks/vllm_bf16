@@ -3,7 +3,13 @@ import shlex
 from dataclasses import dataclass, field
 from typing import Any
 
-from common.config import CONFIG_DIR, MODEL_ID, PROJECT_ROOT, resolve_hf_baseline_path
+from common.config import (
+    CONFIG_DIR,
+    MODEL_ID,
+    PROJECT_ROOT,
+    get_vllm_bf16_selection,
+    resolve_hf_baseline_path,
+)
 
 BACKEND_HOST = os.getenv("BACKEND_HOST", "127.0.0.1")
 BACKEND_PORT = int(os.getenv("BACKEND_PORT", "8000"))
@@ -52,6 +58,8 @@ def _vllm_policy(enable_prefix_caching: bool) -> dict[str, Any]:
 def get_service_specs() -> dict[str, ServiceSpec]:
     hf_model_id = os.getenv("HF_BASELINE_MODEL_ID", MODEL_ID)
     hf_model_path = resolve_hf_baseline_path()
+    vllm_selection = get_vllm_bf16_selection()
+    vllm_model_source = str(vllm_selection["selected_source"])
     awq_model = os.getenv("VLLM_AWQ_MODEL", "").strip() or DEFAULT_AWQ_MODEL
 
     vllm_bf16_config = str((CONFIG_DIR / "vllm_bf16.yaml").resolve())
@@ -94,7 +102,15 @@ def get_service_specs() -> dict[str, ServiceSpec]:
             name="vllm_bf16",
             label="vLLM BF16",
             description="OpenAI-compatible vLLM server with BF16 weights and fixed scheduler controls.",
-            command=("vllm", "serve", "--config", vllm_bf16_config),
+            command=(
+                "vllm",
+                "serve",
+                vllm_model_source,
+                "--served-model-name",
+                MODEL_ID,
+                "--config",
+                vllm_bf16_config,
+            ),
             config_path=vllm_bf16_config,
             model_id=MODEL_ID,
             server_policy=_vllm_policy(enable_prefix_caching=False),
@@ -103,7 +119,15 @@ def get_service_specs() -> dict[str, ServiceSpec]:
             name="vllm_bf16_apc",
             label="vLLM BF16 + APC",
             description="Same vLLM BF16 policy, but with automatic prefix caching enabled.",
-            command=("vllm", "serve", "--config", vllm_bf16_apc_config),
+            command=(
+                "vllm",
+                "serve",
+                vllm_model_source,
+                "--served-model-name",
+                MODEL_ID,
+                "--config",
+                vllm_bf16_apc_config,
+            ),
             config_path=vllm_bf16_apc_config,
             model_id=MODEL_ID,
             server_policy=_vllm_policy(enable_prefix_caching=True),

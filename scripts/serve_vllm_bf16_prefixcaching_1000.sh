@@ -36,15 +36,12 @@ HOST="${VLLM_HOST:-0.0.0.0}"
 PORT="${VLLM_PORT:-8000}"
 # Hub id (used in benchmark --model-id; also --served-model-name when serving from a local directory)
 VLLM_MODEL_HUB="${VLLM_MODEL_HUB:-mistralai/Mistral-7B-Instruct-v0.3}"
+VLLM_MODEL_SOURCE="$(python "$ROOT/scripts/resolve_model_source.py" --stack vllm --field source)"
+VLLM_MODEL_REASON="$(python "$ROOT/scripts/resolve_model_source.py" --stack vllm --field reason)"
 GPU_MEM="${GPU_UTIL:-0.90}"
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-2048}"
 MAX_NUM_SEQS="${MAX_NUM_SEQS:-16}"
 MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS:-4096}"
-# Optional local weights. If unset, use default path when it exists; else serve from hub.
-VLLM_MODEL_PATH="${VLLM_MODEL_PATH:-}"
-if [ -z "$VLLM_MODEL_PATH" ] && [ -d /home/sgcjin/mistral_models/7B-Instruct-v0.3 ]; then
-  VLLM_MODEL_PATH="/home/sgcjin/mistral_models/7B-Instruct-v0.3"
-fi
 BASE_URL="http://127.0.0.1:${PORT}/v1"
 # Experiment: all run outputs (bench json, proms, nvidia-smi logs) go under outputs/<name>/
 EXPERIMENT_NAME="${EXPERIMENT_NAME:-vllm_bf16_prefixcaching}"
@@ -64,32 +61,19 @@ CONFIG_NAME="${BENCH_CONFIG_NAME:-$EXPERIMENT_NAME}"
 
 case "${1:-}" in
   serve)
-    if [ -n "$VLLM_MODEL_PATH" ] && [ -d "$VLLM_MODEL_PATH" ]; then
-      exec vllm serve "$VLLM_MODEL_PATH" \
-        --served-model-name "$VLLM_MODEL_HUB" \
-        --host "$HOST" \
-        --port "$PORT" \
-        --dtype bfloat16 \
-        --scheduling-policy fcfs \
-        --max-num-seqs "$MAX_NUM_SEQS" \
-        --max-num-batched-tokens "$MAX_NUM_BATCHED_TOKENS" \
-        --enable-chunked-prefill \
-        --gpu-memory-utilization "$GPU_MEM" \
-        --max-model-len "$MAX_MODEL_LEN" \
-        --enable-prefix-caching
-    else
-      exec vllm serve "$VLLM_MODEL_HUB" \
-        --host "$HOST" \
-        --port "$PORT" \
-        --dtype bfloat16 \
-        --scheduling-policy fcfs \
-        --max-num-seqs "$MAX_NUM_SEQS" \
-        --max-num-batched-tokens "$MAX_NUM_BATCHED_TOKENS" \
-        --enable-chunked-prefill \
-        --gpu-memory-utilization "$GPU_MEM" \
-        --max-model-len "$MAX_MODEL_LEN" \
-        --enable-prefix-caching
-    fi
+    echo "[vllm_bf16_apc] using source: $VLLM_MODEL_SOURCE ($VLLM_MODEL_REASON)" >&2
+    exec vllm serve "$VLLM_MODEL_SOURCE" \
+      --served-model-name "$VLLM_MODEL_HUB" \
+      --host "$HOST" \
+      --port "$PORT" \
+      --dtype bfloat16 \
+      --scheduling-policy fcfs \
+      --max-num-seqs "$MAX_NUM_SEQS" \
+      --max-num-batched-tokens "$MAX_NUM_BATCHED_TOKENS" \
+      --enable-chunked-prefill \
+      --gpu-memory-utilization "$GPU_MEM" \
+      --max-model-len "$MAX_MODEL_LEN" \
+      --enable-prefix-caching
     ;;
   bench)
     SAMPLES=()
@@ -128,7 +112,7 @@ case "${1:-}" in
     echo "  bench  — sweep c 1,2,4,8,16 (default) + proms/ + nvidia_smi/ CSV" >&2
     echo "         BENCH_NVIDIA_SMI=0 to skip GPU csv; BENCH_CONCURRENCY=N; BENCH_CONCURRENCY_LIST=1,4,8" >&2
     echo "  conda: CONDA_BASE=$CONDA_BASE CONDA_ENV=$CONDA_ENV" >&2
-    echo "  model: VLLM_MODEL_HUB and optional VLLM_MODEL_PATH (local dir)" >&2
+    echo "  model: VLLM_MODEL_PATH or SHARED_MISTRAL_MODEL_PATH; else validated /home/sgcjin/mistral_models/7B-Instruct-v0.3; else Hub" >&2
     echo "  other: EXPERIMENT_NAME (and EXPERIMENT_DIR=.../outputs/\\\$name), BENCH_*, VLLM_PORT" >&2
     echo "         PROMETHEUS_* (PROMETHEUS_SAMPLES defaults to 1), NVIDIA_SMI_CSV_BASE, NVIDIA_SMI_INTERVAL" >&2
     exit 1

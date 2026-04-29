@@ -30,18 +30,9 @@ fi
 HOST="${HF_BASELINE_HOST:-0.0.0.0}"
 PORT="${HF_BASELINE_PORT:-8000}"
 MODEL_HUB="${HF_BASELINE_MODEL_ID:-mistralai/Mistral-7B-Instruct-v0.3}"
-export HF_BASELINE_MODEL_PATH="${HF_BASELINE_MODEL_PATH:-}"
-DEFAULT_LOCAL_HF_PATH="/home/sgcjin/mistral_models/7B-Instruct-v0.3"
-if [ -z "$HF_BASELINE_MODEL_PATH" ] && [ -d "$DEFAULT_LOCAL_HF_PATH" ]; then
-  if [ -f "$DEFAULT_LOCAL_HF_PATH/config.json" ] && \
-     { [ -f "$DEFAULT_LOCAL_HF_PATH/model.safetensors.index.json" ] || \
-       compgen -G "$DEFAULT_LOCAL_HF_PATH/*.safetensors" > /dev/null || \
-       compgen -G "$DEFAULT_LOCAL_HF_PATH/*.bin" > /dev/null; }; then
-    export HF_BASELINE_MODEL_PATH="$DEFAULT_LOCAL_HF_PATH"
-  else
-    echo "[hf_baseline] Skipping incomplete local checkpoint at $DEFAULT_LOCAL_HF_PATH; falling back to Hub model $MODEL_HUB" >&2
-  fi
-fi
+HF_SOURCE="$(python "$ROOT/scripts/resolve_model_source.py" --stack hf --field source)"
+HF_REASON="$(python "$ROOT/scripts/resolve_model_source.py" --stack hf --field reason)"
+export HF_BASELINE_MODEL_PATH="$HF_SOURCE"
 export HF_BASELINE_CONFIG_NAME="${HF_BASELINE_CONFIG_NAME:-hf_baseline_bf16}"
 
 BASE_URL="http://127.0.0.1:${PORT}/v1"
@@ -56,6 +47,7 @@ CONFIG_NAME="${BENCH_CONFIG_NAME:-$EXPERIMENT_NAME}"
 
 case "${1:-}" in
   serve)
+    echo "[hf_baseline] using source: $HF_SOURCE ($HF_REASON)" >&2
     exec uvicorn services.hf_baseline.server_streaming:app \
       --host "$HOST" \
       --port "$PORT"
@@ -88,7 +80,7 @@ case "${1:-}" in
     echo "  serve  — start uvicorn HF baseline on ${HOST}:${PORT} (blocks)" >&2
     echo "  bench  — sweep c 1,2,4,8,16 (default) + nvidia_smi/ CSV" >&2
     echo "           BENCH_NVIDIA_SMI=0 to skip GPU csv; BENCH_CONCURRENCY=N for single run" >&2
-    echo "  model: HF_BASELINE_MODEL_PATH (default: /home/sgcjin/mistral_models/7B-Instruct-v0.3 if present, else Hub)" >&2
+    echo "  model: HF_BASELINE_MODEL_PATH or SHARED_MISTRAL_MODEL_PATH; else validated /home/sgcjin/mistral_models/7B-Instruct-v0.3; else Hub" >&2
     echo "  other: EXPERIMENT_NAME, HF_BASELINE_PORT, BENCH_CONCURRENCY_LIST" >&2
     exit 1
     ;;
