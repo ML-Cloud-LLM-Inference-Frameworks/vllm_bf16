@@ -105,7 +105,8 @@ function fmtSummaryLine(s) {
   }
   if (s.throughput_req_per_s != null) {
     const acc = s.accuracy_valid_only == null ? "-" : `${((s.accuracy_valid_only || 0) * 100).toFixed(1)}%`;
-    return `tput ${fmtF(s.throughput_req_per_s, 2)} r/s | p50 ${fmtF(s.latency_p50_s, 3)}s | acc ${acc}`;
+    const note = s.ui_note ? ` | ${s.ui_note}` : "";
+    return `tput ${fmtF(s.throughput_req_per_s, 2)} r/s | p50 ${fmtF(s.latency_p50_s, 3)}s | acc ${acc}${note}`;
   }
   return "-";
 }
@@ -137,7 +138,15 @@ async function refreshBackendStatus() {
   }
 }
 
-function renderResultTable(results, errors, order) {
+function inferRenderMode(explicitMode, results) {
+  if (explicitMode === "jsonl" || explicitMode === "text") return explicitMode;
+  for (const value of Object.values(results || {})) {
+    if (value && typeof value === "object" && Array.isArray(value.items)) return "text";
+  }
+  return mode();
+}
+
+function renderResultTable(results, errors, order, explicitMode) {
   const host = $("resultTableHost");
   const panel = $("resultsPanel");
   if (!host) return;
@@ -156,7 +165,7 @@ function renderResultTable(results, errors, order) {
   }
   if (panel) panel.hidden = false;
 
-  const isJsonl = mode() === "jsonl";
+  const isJsonl = inferRenderMode(explicitMode, r) === "jsonl";
   const table = document.createElement("table");
   table.className = "data-table";
   const thead = document.createElement("thead");
@@ -199,7 +208,7 @@ function renderResultTable(results, errors, order) {
         <td class="num">${note || !v ? "-" : fmtF(v.ttft_avg_s, 3)}</td>
         <td class="num">${note || !v || v.accuracy_valid_only == null ? "-" : `${(v.accuracy_valid_only * 100).toFixed(1)}%`}</td>
         <td class="num">${note || !v || v.n_requests_measured == null ? "-" : String(v.n_requests_measured)}</td>
-        <td class="err-cell">${note || v?.label_mode || "-"}</td>
+        <td class="err-cell">${note || v?.ui_note || v?.label_mode || "-"}</td>
       `;
       tbody.appendChild(tr);
       continue;
@@ -280,7 +289,7 @@ function handleSseData(log, data, cards) {
     if (data.payload.id && $("jobid")) $("jobid").textContent = data.payload.id;
     if (data.payload.state === "finished") {
       appendLog(log, "==== run finished");
-      renderResultTable(data.payload.results, data.payload.errors, data.payload.config_ids);
+      renderResultTable(data.payload.results, data.payload.errors, data.payload.config_ids, data.payload.mode);
     } else {
       appendLog(log, "==== " + data.payload.state);
     }

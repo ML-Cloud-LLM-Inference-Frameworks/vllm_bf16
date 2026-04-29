@@ -147,6 +147,9 @@ async def run_jsonl_bench(
             "error": "empty JSONL (after limit)",
             "row_count": 0,
         }
+    # The UI often runs tiny pasted JSONL batches; keep at least one measured row.
+    effective_warmup = min(max(0, int(warmup)), max(0, len(rows) - 1))
+    args.warmup = effective_warmup
     client = AsyncOpenAI(base_url=openai_v1_base, api_key="dummy")
     nvidia_smi_csv = str(nvidia.resolve())
     if benchmark_kind == "hf":
@@ -172,6 +175,13 @@ async def run_jsonl_bench(
             is_sweep=False,
         )
     result["has_gold_labels"] = has_labels
+    result["ui_requested_warmup"] = int(warmup)
+    result["ui_effective_warmup"] = int(effective_warmup)
+    if len(rows) <= int(warmup):
+        result["ui_note"] = (
+            f"Warmup reduced from {int(warmup)} to {int(effective_warmup)} "
+            f"so this small JSONL batch still leaves measured requests."
+        )
     if not has_labels:
         result["accuracy_valid_only"] = None
         result["accuracy_overall_invalid_as_wrong"] = None

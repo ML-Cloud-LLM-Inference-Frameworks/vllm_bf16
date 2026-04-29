@@ -19,6 +19,10 @@ _DEFAULT_AWQ_MODEL = "solidrust/Mistral-7B-Instruct-v0.3-AWQ"
 _DEFAULT_AWQ_SERVED_NAME = "mistral-7b-int4"
 
 
+def _frontend_base_model_source() -> str:
+    return (os.environ.get("FRONTEND_BASE_MODEL_SOURCE") or MODEL_ID).strip() or MODEL_ID
+
+
 @dataclass(frozen=True, slots=True)
 class FrontendConfig:
     name: str
@@ -55,10 +59,12 @@ def build_uvicorn_streaming_hf_command() -> tuple[str, ...]:
 def get_frontend_configs() -> dict[str, FrontendConfig]:
     base = get_service_specs()
     out: dict[str, FrontendConfig] = {}
+    frontend_base_model_source = _frontend_base_model_source()
     for key in FRONTEND_CONFIG_ORDER:
         spec = base[key]
         openai_id = spec.model_id
         command = spec.command
+        env = dict(spec.env)
         available = spec.available
         reason = spec.unavailable_reason
         if key == "vllm_awq_int4":
@@ -70,17 +76,24 @@ def get_frontend_configs() -> dict[str, FrontendConfig]:
             reason = None
         if key == "vllm_bf16":
             openai_id = MODEL_ID
+            p = _vllm_config_path("vllm_bf16.yaml")
+            command = ("vllm", "serve", frontend_base_model_source, "--served-model-name", MODEL_ID, "--config", p)
+            env["VLLM_MODEL_PATH"] = frontend_base_model_source
         if key == "vllm_bf16_apc":
             openai_id = MODEL_ID
+            p = _vllm_config_path("vllm_bf16_apc.yaml")
+            command = ("vllm", "serve", frontend_base_model_source, "--served-model-name", MODEL_ID, "--config", p)
+            env["VLLM_MODEL_PATH"] = frontend_base_model_source
         if key == "hf_baseline_bf16":
             openai_id = os.environ.get("HF_BASELINE_MODEL_ID", MODEL_ID)
             command = build_uvicorn_streaming_hf_command()
+            env["HF_BASELINE_MODEL_PATH"] = frontend_base_model_source
         out[key] = FrontendConfig(
             name=spec.name,
             label=spec.label,
             description=spec.description,
             command=command,
-            env=dict(spec.env),
+            env=env,
             openai_model_id=openai_id,
             has_prometheus=not key.startswith("hf_"),
             available=available,

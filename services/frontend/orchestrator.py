@@ -317,6 +317,7 @@ async def run_job(job: Job) -> AsyncIterator[Event]:
             {
                 "id": job.id,
                 "state": "finished",
+                "mode": job.mode,
                 "ephemeral": True,
                 "errors": job.errors,
                 "config_ids": job.config_ids,
