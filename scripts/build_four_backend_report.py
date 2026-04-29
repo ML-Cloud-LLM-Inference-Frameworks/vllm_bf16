@@ -34,12 +34,12 @@ BACKENDS = [
         "color": "#d55c00",
     },
     {
-        "slug": "vllm_bf16_prefixcaching",
+        "slug": "vllm_bf16_apc",
         "label": "vLLM bf16 + prefix caching",
         "short_label": "vLLM + APC",
-        "bench_template": "outputs/vllm_bf16_prefixcaching/bench_1000_c{c}.json",
-        "nvidia_template": "outputs/vllm_bf16_prefixcaching/nvidia_smi/smi_1000_c{c}.csv",
-        "prom_template": "outputs/vllm_bf16_prefixcaching/proms/prom_1000_c{c}.json",
+        "bench_template": "outputs/vllm_bf16_apc/bench_1000_c{c}.json",
+        "nvidia_template": "outputs/vllm_bf16_apc/nvidia_smi/smi_1000_c{c}.csv",
+        "prom_template": "outputs/vllm_bf16_apc/proms/prom_1000_c{c}.json",
         "family": "vllm",
         "color": "#16803c",
     },
@@ -401,10 +401,12 @@ def metrics_table(rows: list[dict]) -> str:
         "Throughput",
         "Latency avg",
         "Service latency avg",
-        "Queue wait avg",
         "Latency p50",
         "Latency p95",
         "Latency p99",
+        "Service latency p50",
+        "Service latency p95",
+        "Service latency p99",
         "TTFT avg",
         "Accuracy valid-only",
         "Accuracy overall",
@@ -424,10 +426,12 @@ def metrics_table(rows: list[dict]) -> str:
             f"<td>{html.escape(format_number(row.get('throughput_req_per_s'), 2))}</td>"
             f"<td>{html.escape(format_number(row.get('latency_avg_s'), 3))}</td>"
             f"<td>{html.escape(format_number(row.get('service_latency_avg_s'), 3))}</td>"
-            f"<td>{html.escape(format_number(row.get('queue_wait_avg_s'), 3))}</td>"
             f"<td>{html.escape(format_number(row.get('latency_p50_s'), 3))}</td>"
             f"<td>{html.escape(format_number(row.get('latency_p95_s'), 3))}</td>"
             f"<td>{html.escape(format_number(row.get('latency_p99_s'), 3))}</td>"
+            f"<td>{html.escape(format_number(row.get('service_latency_p50_s'), 3))}</td>"
+            f"<td>{html.escape(format_number(row.get('service_latency_p95_s'), 3))}</td>"
+            f"<td>{html.escape(format_number(row.get('service_latency_p99_s'), 3))}</td>"
             f"<td>{html.escape(format_number(row.get('ttft_avg_s'), 3))}</td>"
             f"<td>{html.escape(format_number(row.get('accuracy_valid_only'), 3, pct=True))}</td>"
             f"<td>{html.escape(format_number(row.get('accuracy_overall_invalid_as_wrong'), 3, pct=True))}</td>"
@@ -506,13 +510,17 @@ def build_html(rows: list[dict], output_path: Path) -> None:
         line_chart_svg(rows, "latency_p50_s", "p50 latency vs concurrency", lambda value: f"{value:.2f}", "seconds"),
         line_chart_svg(rows, "latency_p95_s", "p95 latency vs concurrency", lambda value: f"{value:.2f}", "seconds"),
         line_chart_svg(rows, "latency_p99_s", "p99 latency vs concurrency", lambda value: f"{value:.2f}", "seconds"),
-        line_chart_svg(rows, "ttft_avg_s", "Average TTFT vs concurrency", lambda value: f"{value:.2f}", "seconds"),
-        line_chart_svg(rows, "ttft_p50_s", "p50 TTFT vs concurrency", lambda value: f"{value:.2f}", "seconds"),
-        line_chart_svg(rows, "ttft_p95_s", "p95 TTFT vs concurrency", lambda value: f"{value:.2f}", "seconds"),
         line_chart_svg(
             rows,
             "service_latency_avg_s",
             "Average service latency vs concurrency",
+            lambda value: f"{value:.2f}",
+            "seconds",
+        ),
+        line_chart_svg(
+            rows,
+            "service_latency_p50_s",
+            "p50 service latency vs concurrency",
             lambda value: f"{value:.2f}",
             "seconds",
         ),
@@ -525,18 +533,12 @@ def build_html(rows: list[dict], output_path: Path) -> None:
         ),
         line_chart_svg(
             rows,
-            "queue_wait_avg_s",
-            "Average queue wait vs concurrency",
+            "service_latency_p99_s",
+            "p99 service latency vs concurrency",
             lambda value: f"{value:.2f}",
             "seconds",
         ),
-        line_chart_svg(
-            rows,
-            "queue_wait_p95_s",
-            "p95 queue wait vs concurrency",
-            lambda value: f"{value:.2f}",
-            "seconds",
-        ),
+        line_chart_svg(rows, "ttft_avg_s", "Average TTFT vs concurrency", lambda value: f"{value:.2f}", "seconds"),
         line_chart_svg(
             rows,
             "accuracy_valid_only",
@@ -560,94 +562,10 @@ def build_html(rows: list[dict], output_path: Path) -> None:
         line_chart_svg(rows, "mem_used_max_mib", "Peak GPU memory used vs concurrency", lambda value: f"{value:.0f}", "MiB"),
         line_chart_svg(
             rows,
-            "e2e_latency_mean_s",
-            "vLLM Prometheus end-to-end latency mean vs concurrency",
-            lambda value: f"{value:.3f}",
-            "seconds",
-        ),
-        line_chart_svg(
-            rows,
-            "queue_time_mean_s",
-            "vLLM Prometheus queue time mean vs concurrency",
-            lambda value: f"{value:.4f}",
-            "seconds",
-        ),
-        line_chart_svg(
-            rows,
-            "inference_time_mean_s",
-            "vLLM Prometheus inference time mean vs concurrency",
-            lambda value: f"{value:.3f}",
-            "seconds",
-        ),
-        line_chart_svg(
-            rows,
-            "prefill_time_mean_s",
-            "vLLM Prometheus prefill time mean vs concurrency",
-            lambda value: f"{value:.3f}",
-            "seconds",
-        ),
-        line_chart_svg(
-            rows,
-            "decode_time_mean_s",
-            "vLLM Prometheus decode time mean vs concurrency",
-            lambda value: f"{value:.3f}",
-            "seconds",
-        ),
-        line_chart_svg(
-            rows,
-            "inter_token_latency_mean_s",
-            "vLLM Prometheus inter-token latency mean vs concurrency",
-            lambda value: f"{value:.3f}",
-            "seconds",
-        ),
-        line_chart_svg(
-            rows,
             "kv_cache_usage_perc_max",
             "vLLM peak KV-cache usage vs concurrency",
             lambda value: f"{value * 100:.2f}%",
             "KV cache %",
-        ),
-        line_chart_svg(
-            rows,
-            "prefix_cache_hit_rate",
-            "vLLM prefix-cache hit rate vs concurrency",
-            lambda value: f"{value * 100:.1f}%",
-            "hit rate",
-        ),
-        line_chart_svg(
-            rows,
-            "prefix_cache_queries",
-            "vLLM prefix-cache queries vs concurrency",
-            lambda value: f"{value:.0f}",
-            "queries",
-        ),
-        line_chart_svg(
-            rows,
-            "prefix_cache_hits",
-            "vLLM prefix-cache hits vs concurrency",
-            lambda value: f"{value:.0f}",
-            "hits",
-        ),
-        line_chart_svg(
-            rows,
-            "prompt_tokens_total",
-            "vLLM prompt tokens total vs concurrency",
-            lambda value: f"{value:.0f}",
-            "tokens",
-        ),
-        line_chart_svg(
-            rows,
-            "prompt_tokens_cached_total",
-            "vLLM cached prompt tokens vs concurrency",
-            lambda value: f"{value:.0f}",
-            "tokens",
-        ),
-        line_chart_svg(
-            rows,
-            "generation_tokens_total",
-            "vLLM generation tokens total vs concurrency",
-            lambda value: f"{value:.0f}",
-            "tokens",
         ),
     ]
 
