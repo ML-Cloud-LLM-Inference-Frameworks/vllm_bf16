@@ -85,6 +85,12 @@ class ModelSourceResolutionTest(unittest.TestCase):
             self.assertTrue((compat / "model-00002-of-00003.safetensors").exists())
             self.assertTrue((compat / "consolidated.safetensors").exists())
 
+    def test_prepare_hf_local_model_path_leaves_hub_id_untouched(self) -> None:
+        prepared = prepare_hf_local_model_path("mistralai/Mistral-7B-Instruct-v0.3")
+        self.assertFalse(prepared["prepared_is_temp"])
+        self.assertEqual(prepared["prepared_path"], "mistralai/Mistral-7B-Instruct-v0.3")
+        self.assertIsNone(prepared["inspection"])
+
 
 if __name__ == "__main__":
     unittest.main()

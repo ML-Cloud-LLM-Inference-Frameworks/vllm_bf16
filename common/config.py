@@ -121,6 +121,14 @@ def _link_or_copy(src: Path, dst: Path) -> None:
 
 
 def prepare_hf_local_model_path(raw_path: str | os.PathLike[str]) -> dict[str, object]:
+    raw = str(raw_path).strip()
+    if _looks_like_hub_id(raw):
+        return {
+            "prepared_path": raw,
+            "prepared_is_temp": False,
+            "reason": "hub id does not require local shard preparation",
+            "inspection": None,
+        }
     inspection = inspect_local_model_dir(raw_path)
     resolved = str(inspection["resolved_path"])
     if not inspection["hf_shard_link_compatible"]:

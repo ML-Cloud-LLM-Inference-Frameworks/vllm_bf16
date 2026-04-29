@@ -20,8 +20,8 @@ def _create_complete_local_model(root: Path) -> None:
 class ServiceSpecsTest(unittest.TestCase):
     def test_hf_ui_backend_uses_streaming_server(self) -> None:
         spec = get_service_specs()["hf_baseline_bf16"]
-        self.assertEqual(spec.command[0], "uvicorn")
-        self.assertEqual(spec.command[1], "services.hf_baseline.server_streaming:app")
+        self.assertEqual(spec.command[1:3], ("-m", "uvicorn"))
+        self.assertEqual(spec.command[3], "services.hf_baseline.server_streaming:app")
 
     def test_ui_vllm_prefix_caching_policies_match_intended_comparison(self) -> None:
         specs = get_service_specs()
@@ -52,8 +52,8 @@ class ServiceSpecsTest(unittest.TestCase):
 
             bf16 = specs["vllm_bf16"]
             apc = specs["vllm_bf16_apc"]
-            self.assertEqual(bf16.command[0:2], ("vllm", "serve"))
-            self.assertEqual(apc.command[0:2], ("vllm", "serve"))
+            self.assertEqual(bf16.command[1], "serve")
+            self.assertEqual(apc.command[1], "serve")
             self.assertEqual(bf16.command[2], str(root))
             self.assertEqual(apc.command[2], str(root))
             self.assertEqual(bf16.command[3:5], ("--served-model-name", MODEL_ID))

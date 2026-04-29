@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import shutil
+import sys
 from dataclasses import dataclass
 
 from common.config import CONFIG_DIR, MODEL_ID
@@ -41,12 +43,18 @@ def _awq_model() -> str:
     return (os.environ.get("VLLM_AWQ_MODEL") or _DEFAULT_AWQ_MODEL).strip()
 
 
+def _vllm_cli() -> str:
+    return shutil.which("vllm") or "vllm"
+
+
 def _vllm_config_path(relative: str) -> str:
     return str((CONFIG_DIR / relative).resolve())
 
 
 def build_uvicorn_streaming_hf_command() -> tuple[str, ...]:
     return (
+        sys.executable,
+        "-m",
         "uvicorn",
         "services.hf_baseline.server_streaming:app",
         "--host",
@@ -71,18 +79,18 @@ def get_frontend_configs() -> dict[str, FrontendConfig]:
             awq = _awq_model()
             openai_id = os.environ.get("VLLM_AWQ_SERVED_NAME", _DEFAULT_AWQ_SERVED_NAME).strip() or _DEFAULT_AWQ_SERVED_NAME
             p = _vllm_config_path("vllm_awq_int4.yaml")
-            command = ("vllm", "serve", awq, "--config", p)
+            command = (_vllm_cli(), "serve", awq, "--config", p)
             available = True
             reason = None
         if key == "vllm_bf16":
             openai_id = MODEL_ID
             p = _vllm_config_path("vllm_bf16.yaml")
-            command = ("vllm", "serve", frontend_base_model_source, "--served-model-name", MODEL_ID, "--config", p)
+            command = (_vllm_cli(), "serve", frontend_base_model_source, "--served-model-name", MODEL_ID, "--config", p)
             env["VLLM_MODEL_PATH"] = frontend_base_model_source
         if key == "vllm_bf16_apc":
             openai_id = MODEL_ID
             p = _vllm_config_path("vllm_bf16_apc.yaml")
-            command = ("vllm", "serve", frontend_base_model_source, "--served-model-name", MODEL_ID, "--config", p)
+            command = (_vllm_cli(), "serve", frontend_base_model_source, "--served-model-name", MODEL_ID, "--config", p)
             env["VLLM_MODEL_PATH"] = frontend_base_model_source
         if key == "hf_baseline_bf16":
             openai_id = os.environ.get("HF_BASELINE_MODEL_ID", MODEL_ID)

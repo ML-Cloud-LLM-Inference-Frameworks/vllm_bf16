@@ -1,5 +1,7 @@
 import os
 import shlex
+import shutil
+import sys
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -55,6 +57,14 @@ def _vllm_policy(enable_prefix_caching: bool) -> dict[str, Any]:
     }
 
 
+def _python_uvicorn_command() -> tuple[str, ...]:
+    return (sys.executable, "-m", "uvicorn")
+
+
+def _vllm_cli() -> str:
+    return shutil.which("vllm") or "vllm"
+
+
 def get_service_specs() -> dict[str, ServiceSpec]:
     hf_model_id = os.getenv("HF_BASELINE_MODEL_ID", MODEL_ID)
     hf_model_path = resolve_hf_baseline_path()
@@ -72,7 +82,7 @@ def get_service_specs() -> dict[str, ServiceSpec]:
             label="HF Baseline BF16",
             description="Transformers + PyTorch baseline with one-request-at-a-time generation on the GPU.",
             command=(
-                "uvicorn",
+                *_python_uvicorn_command(),
                 "services.hf_baseline.server_streaming:app",
                 "--host",
                 "0.0.0.0",
@@ -103,7 +113,7 @@ def get_service_specs() -> dict[str, ServiceSpec]:
             label="vLLM BF16",
             description="OpenAI-compatible vLLM server with BF16 weights and fixed scheduler controls.",
             command=(
-                "vllm",
+                _vllm_cli(),
                 "serve",
                 vllm_model_source,
                 "--served-model-name",
@@ -120,7 +130,7 @@ def get_service_specs() -> dict[str, ServiceSpec]:
             label="vLLM BF16 + APC",
             description="Same vLLM BF16 policy, but with automatic prefix caching enabled.",
             command=(
-                "vllm",
+                _vllm_cli(),
                 "serve",
                 vllm_model_source,
                 "--served-model-name",
@@ -136,7 +146,7 @@ def get_service_specs() -> dict[str, ServiceSpec]:
             name="vllm_awq_int4",
             label="vLLM AWQ INT4",
             description="vLLM with an AWQ-quantized checkpoint. Requires a quantized model path or HF repo on the VM.",
-            command=("vllm", "serve", awq_model or "SET_VLLM_AWQ_MODEL", "--config", vllm_awq_int4_config),
+            command=(_vllm_cli(), "serve", awq_model or "SET_VLLM_AWQ_MODEL", "--config", vllm_awq_int4_config),
             config_path=vllm_awq_int4_config,
             model_id=os.getenv("VLLM_AWQ_SERVED_NAME", DEFAULT_AWQ_SERVED_NAME),
             server_policy={
