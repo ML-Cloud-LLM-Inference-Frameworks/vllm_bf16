@@ -1,0 +1,73 @@
+{
+  "config_name": "vllm_bf16_apc",
+  "model_id": "mistralai/Mistral-7B-Instruct-v0.3",
+  "input_file": "data/agnews_bench_1000.jsonl",
+  "n_requests_measured": 990,
+  "warmup_requests": 10,
+  "concurrency": 1,
+  "throughput_req_per_s": 3.957022700396198,
+  "latency_semantics": "end_to_end_client_observed_including_local_semaphore_wait",
+  "warmup_mode": "concurrent_at_target_concurrency",
+  "measured_phase_wall_time_s": 250.18810225700145,
+  "n_valid_predictions": 981,
+  "n_invalid_predictions": 9,
+  "accuracy_valid_only": 0.745158002038736,
+  "accuracy_overall_invalid_as_wrong": 0.7383838383838384,
+  "latency_avg_s": 118.99033287849427,
+  "latency_p50_s": 115.18006597799831,
+  "latency_p95_s": 233.81999324599747,
+  "latency_p99_s": 246.69569655999658,
+  "service_latency_avg_s": 0.2526715649762091,
+  "service_latency_p50_s": 0.1813909270131262,
+  "service_latency_p95_s": 0.5147839210112579,
+  "service_latency_p99_s": 0.517691510001896,
+  "queue_wait_avg_s": 118.73766131351806,
+  "queue_wait_p50_s": 114.99949294398539,
+  "queue_wait_p95_s": 233.6388246150018,
+  "queue_wait_p99_s": 246.3482257269934,
+  "nvidia_smi": {
+    "csv": "/home/sgcjin/vllm_bf16/outputs/vllm_bf16_apc/nvidia_smi/smi_1000_c1.csv",
+    "interval_s": 1.0,
+    "summary": {
+      "samples": 253,
+      "timestamp_first": "2026/04/28 23:56:35.027",
+      "timestamp_last": "2026/04/29 00:00:47.339"
+    }
+  },
+  "prometheus": {
+    "metrics_url": "http://127.0.0.1:8000/metrics",
+    "polling": {
+      "interval_s": 0.5,
+      "attempts": 495,
+      "successful_scrapes": 495,
+      "errors": [],
+      "kv_cache_usage_perc_max": 0.00571620712844656
+    },
+    "pre_run_fetched_at_utc": "2026-04-28T23:56:34Z",
+    "fetched_at_utc": "2026-04-29T00:00:48Z",
+    "http_status": 200,
+    "derived_from_pre_run_delta": true,
+    "derived": {
+      "ttft_mean_s": 0.11690671610832214,
+      "ttft_mean_s_count": 1000,
+      "e2e_latency_mean_s": 0.24799624490737915,
+      "e2e_latency_mean_s_count": 1000,
+      "queue_time_mean_s": 7.189216979895718e-06,
+      "queue_time_mean_s_count": 1000,
+      "inference_time_mean_s": 0.19944801088898384,
+      "inference_time_mean_s_count": 1000,
+      "prefill_time_mean_s": 0.06842129365987784,
+      "prefill_time_mean_s_count": 1000,
+      "decode_time_mean_s": 0.131026717229106,
+      "decode_time_mean_s_count": 1000,
+      "inter_token_latency_mean_s": 0.05616233057398457,
+      "inter_token_latency_mean_s_count": 2333,
+      "kv_cache_usage_perc_max": 0.00571620712844656,
+      "prefix_cache_hits": 48016,
+      "prefix_cache_queries": 120166,
+      "prefix_cache_hit_rate": 0.3995805801973936
+    },
+    "raw_output": "/home/sgcjin/vllm_bf16/outputs/vllm_bf16_apc/proms/prom_1000_c1.txt",
+    "json_output": "/home/sgcjin/vllm_bf16/outputs/vllm_bf16_apc/proms/prom_1000_c1.json"
+  }
+}
